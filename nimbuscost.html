@@ -1,0 +1,1433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>NimbusCost — Cloud Cost Intelligence</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+/* ── Design Tokens ─────────────────────────────────────────────────────── */
+:root {
+  --bg-base:       #080d1a;
+  --bg-surface:    #0d1525;
+  --bg-card:       #111c30;
+  --bg-card-hover: #162238;
+  --bg-input:      #0d1525;
+  --border:        rgba(255,255,255,0.07);
+  --border-focus:  rgba(99,153,255,0.5);
+
+  --text-primary:  #e8edf5;
+  --text-secondary:#7a8ca8;
+  --text-muted:    #4a5a72;
+
+  --accent-blue:   #3b7ff5;
+  --accent-blue-dim:#1a3d7a;
+  --accent-cyan:   #06b6d4;
+  --accent-green:  #10b981;
+  --accent-red:    #ef4444;
+  --accent-amber:  #f59e0b;
+  --accent-purple: #8b5cf6;
+
+  --aws-orange:    #ff9900;
+  --azure-blue:    #0078d4;
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+
+  --shadow-card: 0 4px 24px rgba(0,0,0,0.4);
+  --shadow-glow: 0 0 24px rgba(59,127,245,0.12);
+
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  --topbar-h: 56px;
+  --sidebar-w: 220px;
+}
+
+/* ── Reset ─────────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body {
+  font-family: var(--font-sans);
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+button { font-family: inherit; cursor: pointer; border: none; background: none; }
+input  { font-family: inherit; }
+
+/* ── Animations ────────────────────────────────────────────────────────── */
+@keyframes fadeIn  { from { opacity:0; transform:translateY(8px) } to { opacity:1; transform:none } }
+@keyframes slideIn { from { opacity:0; transform:translateX(-12px) } to { opacity:1; transform:none } }
+@keyframes pulse   { 0%,100%{ opacity:1 } 50%{ opacity:.5 } }
+.fade-in  { animation: fadeIn .35s ease both; }
+.slide-in { animation: slideIn .3s ease both; }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   LOGIN SCREEN
+══════════════════════════════════════════════════════════════════════════ */
+#login-screen {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(59,127,245,0.18) 0%, transparent 60%),
+    var(--bg-base);
+}
+.login-box {
+  width: 400px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  padding: 40px 36px 32px;
+  box-shadow: var(--shadow-card), var(--shadow-glow);
+}
+.login-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 28px;
+}
+.login-logo .logo-icon {
+  width: 40px; height: 40px;
+  background: linear-gradient(135deg, var(--accent-blue), var(--accent-cyan));
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px;
+}
+.login-logo .logo-text { font-size: 22px; font-weight: 700; letter-spacing: -.5px; }
+.login-logo .logo-text span { color: var(--accent-blue); }
+.login-tagline { font-size: 12px; color: var(--text-muted); margin-bottom: 28px; }
+
+.login-field { margin-bottom: 16px; }
+.login-field label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+.login-field input {
+  width: 100%;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  color: var(--text-primary);
+  font-size: 14px;
+  outline: none;
+  transition: border-color .2s;
+}
+.login-field input:focus { border-color: var(--border-focus); }
+
+#login-error {
+  display: none;
+  background: rgba(239,68,68,.1);
+  border: 1px solid rgba(239,68,68,.3);
+  border-radius: var(--radius-sm);
+  color: var(--accent-red);
+  font-size: 12px;
+  padding: 8px 12px;
+  margin-bottom: 14px;
+  text-align: center;
+}
+.btn-login {
+  width: 100%;
+  padding: 11px;
+  background: linear-gradient(135deg, var(--accent-blue), #2563eb);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+  transition: opacity .2s, transform .15s;
+}
+.btn-login:hover { opacity: .9; transform: translateY(-1px); }
+.btn-login:active { transform: translateY(0); }
+
+.login-hints {
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+}
+.login-hints p { font-size: 11px; color: var(--text-muted); margin-bottom: 6px; }
+.login-hints code {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  background: rgba(255,255,255,.05);
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: var(--text-secondary);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   APP SHELL
+══════════════════════════════════════════════════════════════════════════ */
+#app {
+  display: none;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ── Topbar ──────────────────────────────────────────────────────────── */
+.topbar {
+  height: var(--topbar-h);
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  gap: 16px;
+  flex-shrink: 0;
+  z-index: 100;
+}
+.topbar-logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -.4px;
+  text-decoration: none;
+  color: var(--text-primary);
+  flex-shrink: 0;
+}
+.topbar-logo .logo-icon {
+  width: 30px; height: 30px;
+  background: linear-gradient(135deg, var(--accent-blue), var(--accent-cyan));
+  border-radius: 7px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 15px;
+}
+.topbar-logo span { color: var(--accent-blue); }
+.topbar-divider { width: 1px; height: 24px; background: var(--border); }
+
+.topbar-nav { display: flex; align-items: center; gap: 2px; flex: 1; }
+.nav-btn {
+  padding: 6px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  transition: all .18s;
+}
+.nav-btn:hover { color: var(--text-primary); background: rgba(255,255,255,.05); }
+.nav-btn.active { background: rgba(59,127,245,.15); color: var(--accent-blue); }
+
+.topbar-right { display: flex; align-items: center; gap: 10px; margin-left: auto; }
+
+.user-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px 12px 4px 4px;
+}
+.user-avatar {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent-purple), var(--accent-blue));
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  flex-shrink: 0;
+}
+.user-info { line-height: 1.2; }
+.user-name  { font-size: 12px; font-weight: 600; color: var(--text-primary); }
+.user-role  { font-size: 10px; color: var(--text-muted); text-transform: capitalize; }
+
+.logout-btn {
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  transition: all .18s;
+}
+.logout-btn:hover { color: var(--accent-red); border-color: rgba(239,68,68,.4); }
+
+/* ── Body Layout ─────────────────────────────────────────────────────── */
+.app-body {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* ── Sidebar ─────────────────────────────────────────────────────────── */
+.sidebar {
+  width: var(--sidebar-w);
+  background: var(--bg-surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  padding: 16px 10px;
+  flex-shrink: 0;
+  overflow-y: auto;
+}
+.sidebar-section-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--text-muted);
+  padding: 8px 10px 6px;
+}
+.sidebar-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  transition: all .18s;
+  text-align: left;
+}
+.sidebar-btn .icon { font-size: 16px; width: 20px; text-align: center; }
+.sidebar-btn:hover { color: var(--text-primary); background: rgba(255,255,255,.05); }
+.sidebar-btn.active { background: rgba(59,127,245,.12); color: var(--accent-blue); }
+.sidebar-btn .badge-dot {
+  margin-left: auto;
+  width: 6px; height: 6px;
+  background: var(--accent-red);
+  border-radius: 50%;
+  animation: pulse 1.6s ease-in-out infinite;
+}
+
+/* ── Main Content ────────────────────────────────────────────────────── */
+.main-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px 28px;
+  background: var(--bg-base);
+}
+
+/* ── Page Header ─────────────────────────────────────────────────────── */
+.page-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+.page-title { font-size: 22px; font-weight: 700; letter-spacing: -.4px; }
+.page-sub   { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+
+/* ── Cloud Filter Bar ────────────────────────────────────────────────── */
+.cloud-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 10px 16px;
+  margin-bottom: 22px;
+  flex-wrap: wrap;
+}
+.filter-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--text-muted);
+  margin-right: 4px;
+}
+.cloud-toggle-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 14px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  transition: all .18s;
+}
+.cloud-toggle-btn:hover { color: var(--text-primary); }
+.cloud-toggle-btn.active-aws  { background: rgba(255,153,0,.12); border-color: rgba(255,153,0,.4); color: var(--aws-orange); }
+.cloud-toggle-btn.active-azure{ background: rgba(0,120,212,.12); border-color: rgba(0,120,212,.4); color: var(--azure-blue); }
+.cloud-icon { font-size: 14px; }
+
+.filter-sep { width:1px; height:20px; background: var(--border); }
+
+#profile-select-wrap { display: none; align-items: center; gap: 8px; }
+.profile-select {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 12px;
+  font-family: var(--font-sans);
+  padding: 5px 10px;
+  outline: none;
+  cursor: pointer;
+}
+.profile-select:focus { border-color: var(--border-focus); }
+
+/* ── Metric Cards ────────────────────────────────────────────────────── */
+.cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.metric-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  transition: border-color .2s, box-shadow .2s;
+  animation: fadeIn .4s ease both;
+}
+.metric-card:hover { border-color: rgba(59,127,245,.3); box-shadow: var(--shadow-glow); }
+.mc-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.mc-icon { font-size: 15px; }
+.mc-value {
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -.6px;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  margin-bottom: 4px;
+}
+.mc-sub { font-size: 12px; color: var(--text-secondary); }
+.mc-sub.up   { color: var(--accent-red); }
+.mc-sub.down { color: var(--accent-green); }
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.badge-warn { background: rgba(245,158,11,.12); color: var(--accent-amber); border: 1px solid rgba(245,158,11,.3); }
+.badge-ok   { background: rgba(16,185,129,.12); color: var(--accent-green); border: 1px solid rgba(16,185,129,.3); }
+.badge-info { background: rgba(59,127,245,.12); color: var(--accent-blue);  border: 1px solid rgba(59,127,245,.3); }
+.badge-red  { background: rgba(239,68,68,.12);  color: var(--accent-red);   border: 1px solid rgba(239,68,68,.3); }
+
+/* ── Section Panels ──────────────────────────────────────────────────── */
+.panel {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  margin-bottom: 20px;
+  animation: fadeIn .4s ease both;
+}
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+}
+.panel-title { font-size: 14px; font-weight: 600; }
+.panel-body  { padding: 20px; }
+
+/* ── Services Table ──────────────────────────────────────────────────── */
+.services-table { width: 100%; border-collapse: collapse; }
+.services-table th {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  color: var(--text-muted);
+  padding: 0 12px 10px;
+  text-align: left;
+}
+.services-table th:not(:first-child) { text-align: right; }
+.services-table td {
+  padding: 11px 12px;
+  font-size: 13px;
+  border-top: 1px solid var(--border);
+  vertical-align: middle;
+}
+.services-table td:not(:first-child) { text-align: right; }
+.services-table tr:hover td { background: rgba(255,255,255,.02); }
+.svc-name { font-weight: 500; color: var(--text-primary); display: flex; align-items: center; gap: 8px; }
+.svc-icon { font-size: 16px; }
+.svc-cost { font-family: var(--font-mono); font-weight: 600; color: var(--text-primary); }
+.svc-pct  { color: var(--text-secondary); font-size: 12px; }
+
+.usage-bar-wrap { display: flex; align-items: center; gap: 8px; justify-content: flex-end; }
+.usage-bar {
+  width: 90px; height: 5px;
+  background: rgba(255,255,255,.08);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.usage-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent-blue), var(--accent-cyan));
+  transition: width .6s ease;
+}
+
+/* ── Invoice / Month Pills ───────────────────────────────────────────── */
+.month-pills { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
+.month-pill {
+  padding: 5px 14px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  transition: all .18s;
+}
+.month-pill:hover { color: var(--text-primary); }
+.month-pill.active {
+  background: rgba(59,127,245,.15);
+  border-color: rgba(59,127,245,.4);
+  color: var(--accent-blue);
+}
+.btn-download {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 18px;
+  background: linear-gradient(135deg, var(--accent-blue), #2563eb);
+  color: #fff;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 600;
+  transition: opacity .2s, transform .15s;
+}
+.btn-download:hover { opacity: .9; transform: translateY(-1px); }
+
+/* ── Chart Wrapper ───────────────────────────────────────────────────── */
+.chart-wrap { position: relative; height: 240px; }
+
+/* ── Infra / DevOps specific ─────────────────────────────────────────── */
+.alert-feed { display: flex; flex-direction: column; gap: 8px; }
+.alert-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  font-size: 12px;
+}
+.alert-item.warn { background: rgba(245,158,11,.06); border-color: rgba(245,158,11,.2); }
+.alert-item.crit { background: rgba(239,68,68,.06);  border-color: rgba(239,68,68,.2); }
+.alert-item.ok   { background: rgba(16,185,129,.06); border-color: rgba(16,185,129,.2); }
+.alert-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; margin-top:3px; }
+.alert-dot.warn { background: var(--accent-amber); }
+.alert-dot.crit { background: var(--accent-red); }
+.alert-dot.ok   { background: var(--accent-green); }
+.alert-text { color: var(--text-secondary); }
+.alert-text strong { color: var(--text-primary); display: block; margin-bottom: 2px; }
+.alert-time { margin-left: auto; color: var(--text-muted); font-size: 11px; white-space: nowrap; }
+
+/* ── Infra health meters ─────────────────────────────────────────────── */
+.health-meter { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+.health-label { font-size: 12px; color: var(--text-secondary); width: 120px; flex-shrink: 0; }
+.health-bar { flex: 1; height: 7px; background: rgba(255,255,255,.07); border-radius: 999px; overflow: hidden; }
+.health-bar-fill { height: 100%; border-radius: 999px; transition: width .7s ease; }
+.health-val { font-size: 12px; font-family: var(--font-mono); color: var(--text-primary); width: 44px; text-align: right; }
+
+/* ─ NEW ADDITIONS ─────────────────────────────────────────────────────────── */
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+@media (max-width: 960px) { .two-col { grid-template-columns: 1fr; } }
+
+.infra-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.tech-value {
+  font-size: 32px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  color: var(--text-primary);
+  letter-spacing: -1px;
+}
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════════════════════════════════
+     LOGIN SCREEN
+══════════════════════════════════════════════════════════════════════════ -->
+<div id="login-screen">
+  <div class="login-box fade-in">
+    <div class="login-logo">
+      <div class="logo-icon">☁</div>
+      <div class="logo-text">Nimbus<span>Cost</span></div>
+    </div>
+    <p class="login-tagline">Cloud Cost Intelligence Platform · Enterprise Edition</p>
+
+    <div id="login-error">Invalid credentials. Please try again.</div>
+
+    <div class="login-field">
+      <label>Email address</label>
+      <input type="email" id="login-email" placeholder="you@company.com" autocomplete="username" />
+    </div>
+    <div class="login-field">
+      <label>Password</label>
+      <input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password" />
+    </div>
+
+    <button class="btn-login" onclick="doLogin()">Sign in</button>
+
+    <div class="login-hints">
+      <p>Demo credentials:</p>
+      <p><code>vindhya@company.com</code> / <code>demo</code> → Manager</p>
+      <p><code>krishna@company.com</code> / <code>demo</code> → DevOps</p>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════════════
+     APP SHELL
+══════════════════════════════════════════════════════════════════════════ -->
+<div id="app">
+
+  <!-- Topbar -->
+  <header class="topbar">
+    <a class="topbar-logo">
+      <div class="logo-icon">☁</div>
+      Nimbus<span>Cost</span>
+    </a>
+    <div class="topbar-divider"></div>
+
+    <nav class="topbar-nav" id="topbar-nav">
+      <button class="nav-btn active" onclick="showPage('dashboard', this)">Dashboard</button>
+      <button class="nav-btn" onclick="showPage('billing', this)">Billing</button>
+      <button class="nav-btn" id="nav-infra" style="display:none" onclick="showPage('infra', this)">Infrastructure</button>
+    </nav>
+
+    <div class="topbar-right">
+      <div class="user-pill">
+        <div class="user-avatar" id="user-avatar">?</div>
+        <div class="user-info">
+          <div class="user-name" id="user-name-display">—</div>
+          <div class="user-role" id="user-role-display">—</div>
+        </div>
+      </div>
+      <button class="logout-btn" onclick="doLogout()">Sign out</button>
+    </div>
+  </header>
+
+  <!-- Body -->
+  <div class="app-body">
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-section-label">Overview</div>
+      <button class="sidebar-btn active" onclick="showPage('dashboard', null, this)">
+        <span class="icon">📊</span> Dashboard
+      </button>
+      <button class="sidebar-btn" onclick="showPage('billing', null, this)">
+        <span class="icon">🧾</span> Billing
+      </button>
+      <button class="sidebar-btn" id="sidebar-infra" style="display:none" onclick="showPage('infra', null, this)">
+        <span class="icon">🖥</span> Infrastructure
+      </button>
+
+      <div class="sidebar-section-label" style="margin-top:12px">Insights</div>
+      <button class="sidebar-btn">
+        <span class="icon">💡</span> Recommendations
+      </button>
+      <button class="sidebar-btn">
+        <span class="icon">⚡</span> Anomalies
+        <span class="badge-dot"></span>
+      </button>
+      <button class="sidebar-btn">
+        <span class="icon">📅</span> Forecasts
+      </button>
+
+      <div class="sidebar-section-label" style="margin-top:12px">Settings</div>
+      <button class="sidebar-btn">
+        <span class="icon">🔑</span> Integrations
+      </button>
+      <button class="sidebar-btn">
+        <span class="icon">🔔</span> Alerts
+      </button>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content" id="main-content">
+      <!-- Pages injected here by JS -->
+    </main>
+
+  </div><!-- /.app-body -->
+</div><!-- /#app -->
+
+<script>
+/* ══════════════════════════════════════════════════════════════════════════
+   STATE
+══════════════════════════════════════════════════════════════════════════ */
+let currentUser = null;
+let activeCharts = {};
+let selectedMonth = 'Jun';
+let selectedCloud = 'aws';
+
+/* ── localStorage helpers ──────────────────────────────────────────────── */
+const LS_KEY = 'nimbuscost_session';
+
+function saveSession() {
+  try {
+    localStorage.setItem(LS_KEY, JSON.stringify({
+      user: currentUser,
+      month: selectedMonth,
+      cloud: selectedCloud,
+    }));
+  } catch(e) {}
+}
+
+function clearSession() {
+  try { localStorage.removeItem(LS_KEY); } catch(e) {}
+}
+
+function restoreSession() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return;
+    const s = JSON.parse(raw);
+    if (!s || !s.user) return;
+    // Validate user still exists
+    const u = USERS[s.user.email];
+    if (!u || u.role !== s.user.role) return;
+
+    currentUser  = s.user;
+    selectedMonth = s.month || 'Jun';
+    selectedCloud = s.cloud || 'aws';
+
+    // Restore UI
+    const initials = currentUser.name.slice(0, 2).toUpperCase();
+    document.getElementById('user-avatar').textContent       = initials;
+    document.getElementById('user-name-display').textContent = currentUser.name;
+    document.getElementById('user-role-display').textContent = currentUser.role === 'manager' ? 'Manager' : 'DevOps';
+
+    if (currentUser.role === 'devops') {
+      document.getElementById('nav-infra').style.display     = 'block';
+      document.getElementById('sidebar-infra').style.display = 'block';
+    }
+
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('app').style.display          = 'flex';
+    showPage('dashboard');
+  } catch(e) {}
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   DATA
+══════════════════════════════════════════════════════════════════════════ */
+const SERVICES_DATA = {
+  Jan: [
+    { name:'EC2',        icon:'🖥', cost: 3980, pct: 31 },
+    { name:'S3',         icon:'🪣', cost: 1240, pct: 10 },
+    { name:'RDS',        icon:'🗄', cost: 2870, pct: 22 },
+    { name:'Lambda',     icon:'⚡', cost:  620, pct:  5 },
+    { name:'CloudFront', icon:'🌐', cost:  510, pct:  4 },
+  ],
+  Feb: [
+    { name:'EC2',        icon:'🖥', cost: 4100, pct: 32 },
+    { name:'S3',         icon:'🪣', cost: 1310, pct: 10 },
+    { name:'RDS',        icon:'🗄', cost: 2940, pct: 23 },
+    { name:'Lambda',     icon:'⚡', cost:  650, pct:  5 },
+    { name:'CloudFront', icon:'🌐', cost:  540, pct:  4 },
+  ],
+  Mar: [
+    { name:'EC2',        icon:'🖥', cost: 4200, pct: 33 },
+    { name:'S3',         icon:'🪣', cost: 1350, pct: 11 },
+    { name:'RDS',        icon:'🗄', cost: 2900, pct: 23 },
+    { name:'Lambda',     icon:'⚡', cost:  680, pct:  5 },
+    { name:'CloudFront', icon:'🌐', cost:  560, pct:  4 },
+  ],
+  Apr: [
+    { name:'EC2',        icon:'🖥', cost: 4280, pct: 33 },
+    { name:'S3',         icon:'🪣', cost: 1380, pct: 11 },
+    { name:'RDS',        icon:'🗄', cost: 2920, pct: 23 },
+    { name:'Lambda',     icon:'⚡', cost:  700, pct:  5 },
+    { name:'CloudFront', icon:'🌐', cost:  580, pct:  5 },
+  ],
+  May: [
+    { name:'EC2',        icon:'🖥', cost: 4300, pct: 34 },
+    { name:'S3',         icon:'🪣', cost: 1400, pct: 11 },
+    { name:'RDS',        icon:'🗄', cost: 2850, pct: 22 },
+    { name:'Lambda',     icon:'⚡', cost:  720, pct:  6 },
+    { name:'CloudFront', icon:'🌐', cost:  600, pct:  5 },
+  ],
+  Jun: [
+    { name:'EC2',        icon:'🖥', cost: 4320, pct: 35 },
+    { name:'S3',         icon:'🪣', cost: 1430, pct: 11 },
+    { name:'RDS',        icon:'🗄', cost: 2870, pct: 23 },
+    { name:'Lambda',     icon:'⚡', cost:  740, pct:  6 },
+    { name:'CloudFront', icon:'🌐', cost:  620, pct:  5 },
+  ],
+};
+
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun'];
+
+const AWS_PROFILES    = ['aws-prod-account','aws-staging-account','aws-dev-account'];
+const AZURE_SUBS      = ['azure-prod-sub','azure-dev-sub'];
+
+const MONTHLY_TOTALS  = { Jan:12480, Feb:12950, Mar:13100, Apr:13240, May:13410, Jun:12480 };
+
+/* ══════════════════════════════════════════════════════════════════════════
+   LOGIN
+══════════════════════════════════════════════════════════════════════════ */
+const USERS = {
+  'vindhya@company.com': { password:'demo', role:'manager', name:'Vindhya' },
+  'krishna@company.com': { password:'demo', role:'devops',  name:'Krishna'  },
+};
+
+function doLogin() {
+  const email = document.getElementById('login-email').value.trim().toLowerCase();
+  const pass  = document.getElementById('login-password').value;
+  const errEl = document.getElementById('login-error');
+
+  const user = USERS[email];
+  if (!user || user.password !== pass) {
+    errEl.style.display = 'block';
+    return;
+  }
+  errEl.style.display = 'none';
+  currentUser = { name: user.name, role: user.role, email };
+
+  // Render user pill
+  const initials = user.name.slice(0, 2).toUpperCase();
+  document.getElementById('user-avatar').textContent       = initials;
+  document.getElementById('user-name-display').textContent = user.name;
+  document.getElementById('user-role-display').textContent = user.role === 'manager' ? 'Manager' : 'DevOps';
+
+  // Show infra tab only for devops
+  if (user.role === 'devops') {
+    document.getElementById('nav-infra').style.display     = 'block';
+    document.getElementById('sidebar-infra').style.display = 'block';
+  }
+
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app').style.display          = 'flex';
+
+  saveSession();
+  showPage('dashboard');
+}
+
+// Allow Enter key on password field
+document.getElementById('login-password').addEventListener('keydown', e => {
+  if (e.key === 'Enter') doLogin();
+});
+document.getElementById('login-email').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('login-password').focus();
+});
+
+function doLogout() {
+  clearSession();
+  currentUser = null;
+  document.getElementById('app').style.display          = 'none';
+  document.getElementById('login-screen').style.display = 'flex';
+  document.getElementById('login-email').value    = '';
+  document.getElementById('login-password').value = '';
+  document.getElementById('login-error').style.display = 'none';
+  // Reset nav
+  document.getElementById('nav-infra').style.display     = 'none';
+  document.getElementById('sidebar-infra').style.display = 'none';
+  destroyCharts();
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   NAVIGATION
+══════════════════════════════════════════════════════════════════════════ */
+function showPage(page, topbarBtn, sidebarBtn) {
+  // Update topbar nav active
+  if (topbarBtn) {
+    document.querySelectorAll('.topbar-nav .nav-btn').forEach(b => b.classList.remove('active'));
+    topbarBtn.classList.add('active');
+  }
+  // Update sidebar active
+  if (sidebarBtn) {
+    document.querySelectorAll('.sidebar-btn').forEach(b => b.classList.remove('active'));
+    sidebarBtn.classList.add('active');
+  }
+
+  destroyCharts();
+  const mc = document.getElementById('main-content');
+
+  if (page === 'dashboard') renderDashboard(currentUser.role, mc);
+  if (page === 'billing')   renderBilling(mc);
+  if (page === 'infra')     renderInfra(mc);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   CLOUD FILTER BAR HTML
+══════════════════════════════════════════════════════════════════════════ */
+function cloudFilterBarHTML() {
+  return `
+  <div class="cloud-filter-bar">
+    <span class="filter-label">Cloud</span>
+    <button class="cloud-toggle-btn active-aws" id="btn-aws"  onclick="selectCloud('aws')">
+      <span class="cloud-icon">🟠</span> AWS
+    </button>
+    <button class="cloud-toggle-btn" id="btn-azure" onclick="selectCloud('azure')">
+      <span class="cloud-icon">🔵</span> Azure
+    </button>
+    <div class="filter-sep"></div>
+    <div id="profile-select-wrap" style="display:flex;align-items:center;gap:8px;">
+      <span class="filter-label" id="profile-label">Profile</span>
+      <select class="profile-select" id="profile-select"></select>
+    </div>
+  </div>`;
+}
+
+function selectCloud(cloud) {
+  selectedCloud = cloud;
+  saveSession();
+  const btnAws   = document.getElementById('btn-aws');
+  const btnAzure = document.getElementById('btn-azure');
+  const wrap     = document.getElementById('profile-select-wrap');
+  const select   = document.getElementById('profile-select');
+  const label    = document.getElementById('profile-label');
+
+  btnAws.className   = 'cloud-toggle-btn' + (cloud === 'aws'   ? ' active-aws'   : '');
+  btnAzure.className = 'cloud-toggle-btn' + (cloud === 'azure' ? ' active-azure' : '');
+
+  const opts = cloud === 'aws' ? AWS_PROFILES : AZURE_SUBS;
+  label.textContent = cloud === 'aws' ? 'Profile' : 'Subscription';
+  select.innerHTML  = opts.map(o => `<option>${o}</option>`).join('');
+  wrap.style.display = 'flex';
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   DASHBOARD — role-aware
+══════════════════════════════════════════════════════════════════════════ */
+function renderDashboard(role, container) {
+  if (role === 'manager') renderManagerDashboard(container);
+  else                    renderDevOpsDashboard(container);
+  // Boot cloud filter after injection
+  setTimeout(() => selectCloud('aws'), 0);
+}
+
+/* ── Manager Dashboard ────────────────────────────────────────────────── */
+function renderManagerDashboard(mc) {
+  mc.innerHTML = `
+    <div class="page-header">
+      <div>
+        <div class="page-title">Cost Overview</div>
+        <div class="page-sub">AWS · Jun 2025 · All services</div>
+      </div>
+    </div>
+
+    ${cloudFilterBarHTML()}
+
+    <div class="cards-grid" id="dashboard-content">
+      <!-- Month-over-Month -->
+      <div class="metric-card">
+        <div class="mc-label"><span class="mc-icon">📈</span> Month-over-Month</div>
+        <div class="mc-value">$12,480</div>
+        <div class="mc-sub up">+$1,240 vs last month</div>
+      </div>
+
+      <!-- Forecast -->
+      <div class="metric-card">
+        <div class="mc-label"><span class="mc-icon">🔮</span> Forecast</div>
+        <div class="mc-value">$16,200</div>
+        <div style="margin-top:6px">
+          <span class="badge badge-warn">⚠ 12% over budget</span>
+        </div>
+      </div>
+
+      <!-- Top Consumption Service -->
+      <div class="metric-card">
+        <div class="mc-label"><span class="mc-icon">🏆</span> Top Service</div>
+        <div class="mc-value" style="font-size:20px">EC2 / Compute</div>
+        <div class="mc-sub" style="font-family:var(--font-mono);font-size:15px;color:var(--text-primary);margin-top:4px">$4,320</div>
+        <div class="mc-sub">35% of total spend</div>
+      </div>
+
+      <!-- Total Spend -->
+      <div class="metric-card">
+        <div class="mc-label"><span class="mc-icon">💳</span> Total Spend</div>
+        <div class="mc-value">$12,480</div>
+        <div class="mc-sub down">↓ 2.3% vs May</div>
+      </div>
+
+      <!-- Budget Used -->
+      <div class="metric-card">
+        <div class="mc-label"><span class="mc-icon">🎯</span> Budget Used</div>
+        <div class="mc-value">77%</div>
+        <div class="mc-sub">$12,480 of $16,200 budget</div>
+      </div>
+
+      <!-- Active Services -->
+      <div class="metric-card">
+        <div class="mc-label"><span class="mc-icon">⚙️</span> Active Services</div>
+        <div class="mc-value">24</div>
+        <div class="mc-sub">across 3 AWS accounts</div>
+      </div>
+    </div>
+
+    <!-- Spend Trend Chart -->
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Monthly Spend Trend</span>
+        <span class="badge badge-info">Jan – Jun 2025</span>
+      </div>
+      <div class="panel-body">
+        <div class="chart-wrap"><canvas id="spendChart"></canvas></div>
+      </div>
+    </div>
+
+    <!-- Top Services Table -->
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Top Services · Jun 2025</span>
+        <span class="badge badge-ok">5 services</span>
+      </div>
+      <div class="panel-body" style="padding:0 0 4px">
+        ${servicesTableHTML('Jun')}
+      </div>
+    </div>
+  `;
+
+  drawSpendChart();
+}
+
+/* ── DevOps Dashboard ─────────────────────────────────────────────────── */
+function renderDevOpsDashboard(mc) {
+  mc.innerHTML = `
+    <div class="page-header">
+      <div>
+        <div class="page-title">Infrastructure Health</div>
+        <div class="page-sub">Real-time metrics · AWS ap-south-1</div>
+      </div>
+    </div>
+
+    ${cloudFilterBarHTML()}
+
+    <div class="infra-stat-grid" id="dashboard-content">
+      <div class="metric-card">
+        <div class="mc-label"><span class="mc-icon">🖥</span> Running Instances</div>
+        <div class="tech-value">48</div>
+        <div class="mc-sub">EC2 across 3 regions</div>
+      </div>
+      <div class="metric-card">
+        <div class="mc-label"><span class="mc-icon">🚀</span> Deployments</div>
+        <div class="tech-value">14</div>
+        <div class="mc-sub">this month · 2 failed</div>
+      </div>
+      <div class="metric-card">
+        <div class="mc-label"><span class="mc-icon">✅</span> Uptime</div>
+        <div class="tech-value">99.7<span style="font-size:18px">%</span></div>
+        <div class="mc-sub">30-day rolling average</div>
+      </div>
+    </div>
+
+    <div class="two-col">
+
+      <!-- CPU & Resource Metrics -->
+      <div class="panel">
+        <div class="panel-header">
+          <span class="panel-title">Technical Metrics</span>
+          <span class="badge badge-info">Live</span>
+        </div>
+        <div class="panel-body">
+          ${healthMeter('Avg CPU Usage',    '62%', 62,  '#3b7ff5')}
+          ${healthMeter('Memory Pressure',  '74%', 74,  '#f59e0b')}
+          ${healthMeter('Disk I/O',         '41%', 41,  '#10b981')}
+          ${healthMeter('Network Out',      '55%', 55,  '#06b6d4')}
+          ${healthMeter('Lambda Errors',    '3%',   3,  '#ef4444')}
+          ${healthMeter('RDS Connections',  '48%', 48,  '#8b5cf6')}
+        </div>
+      </div>
+
+      <!-- Alert / Anomaly Feed -->
+      <div class="panel">
+        <div class="panel-header">
+          <span class="panel-title">Alert Feed</span>
+          <span class="badge badge-red">3 active</span>
+        </div>
+        <div class="panel-body">
+          <div class="alert-feed">
+            <div class="alert-item crit">
+              <div class="alert-dot crit"></div>
+              <div class="alert-text">
+                <strong>High CPU — i-0a8f39b2</strong>
+                EC2 instance in ap-south-1 sustained 92% CPU for 18 min
+              </div>
+              <div class="alert-time">4m ago</div>
+            </div>
+            <div class="alert-item warn">
+              <div class="alert-dot warn"></div>
+              <div class="alert-text">
+                <strong>Cost Anomaly Detected</strong>
+                S3 data transfer spiked 3.4× vs 7-day baseline
+              </div>
+              <div class="alert-time">22m ago</div>
+            </div>
+            <div class="alert-item warn">
+              <div class="alert-dot warn"></div>
+              <div class="alert-text">
+                <strong>Lambda Cold Starts</strong>
+                auth-service: 340 cold starts in last hour
+              </div>
+              <div class="alert-time">1h ago</div>
+            </div>
+            <div class="alert-item ok">
+              <div class="alert-dot ok"></div>
+              <div class="alert-text">
+                <strong>Deployment Successful</strong>
+                api-gateway v2.4.1 deployed to prod
+              </div>
+              <div class="alert-time">3h ago</div>
+            </div>
+            <div class="alert-item ok">
+              <div class="alert-dot ok"></div>
+              <div class="alert-text">
+                <strong>Auto-scaling triggered</strong>
+                web-cluster scaled from 4→7 nodes in ap-south-1
+              </div>
+              <div class="alert-time">5h ago</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Resource Cost panel (devops still needs cost awareness) -->
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Resource Cost Breakdown · Jun 2025</span>
+      </div>
+      <div class="panel-body" style="padding:0 0 4px">
+        ${servicesTableHTML('Jun')}
+      </div>
+    </div>
+  `;
+
+  drawSpendChart();
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   BILLING PAGE
+══════════════════════════════════════════════════════════════════════════ */
+function renderBilling(mc) {
+  mc.innerHTML = `
+    <div class="page-header">
+      <div>
+        <div class="page-title">Billing & Invoices</div>
+        <div class="page-sub">Download monthly cost reports as CSV</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Invoice Download</span>
+      </div>
+      <div class="panel-body">
+        <p style="font-size:12px;color:var(--text-secondary);margin-bottom:14px">
+          Select a month to preview and download the cost report.
+        </p>
+        <div class="month-pills" id="month-pills">
+          ${MONTHS.map(m => `
+            <button class="month-pill ${m === selectedMonth ? 'active' : ''}"
+              onclick="selectInvoiceMonth('${m}', this)">${m} 2025</button>
+          `).join('')}
+        </div>
+
+        <div class="panel" style="margin-bottom:16px">
+          <div class="panel-header">
+            <span class="panel-title">Preview — ${''}<span id="invoice-month-label">${selectedMonth} 2025</span></span>
+          </div>
+          <div class="panel-body" style="padding:0 0 4px" id="invoice-preview">
+            ${servicesTableHTML(selectedMonth)}
+          </div>
+        </div>
+
+        <button class="btn-download" onclick="downloadCSV()">
+          ⬇ Download CSV — <span id="dl-month-label">${selectedMonth} 2025</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Full monthly totals table -->
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Monthly Totals</span>
+      </div>
+      <div class="panel-body" style="padding:0 0 4px">
+        <table class="services-table">
+          <thead>
+            <tr>
+              <th>Month</th>
+              <th>Total Cost</th>
+              <th>vs Prior Month</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${MONTHS.slice().reverse().map((m, i, arr) => {
+              const cur  = MONTHLY_TOTALS[m];
+              const prev = arr[i+1] ? MONTHLY_TOTALS[arr[i+1]] : null;
+              const delta = prev ? cur - prev : null;
+              const sign  = delta > 0 ? '+' : '';
+              const cls   = delta > 0 ? 'up' : 'down';
+              return `<tr>
+                <td><span class="svc-name">${m} 2025</span></td>
+                <td class="svc-cost">$${cur.toLocaleString()}</td>
+                <td class="mc-sub ${cls}">${delta !== null ? sign + '$' + Math.abs(delta).toLocaleString() : '—'}</td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+function selectInvoiceMonth(m, btn) {
+  selectedMonth = m;
+  saveSession();
+  document.querySelectorAll('.month-pill').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('invoice-month-label').textContent = m + ' 2025';
+  document.getElementById('dl-month-label').textContent      = m + ' 2025';
+  document.getElementById('invoice-preview').innerHTML       = servicesTableHTML(m);
+}
+
+function downloadCSV() {
+  const data = SERVICES_DATA[selectedMonth];
+  const rows = [
+    ['Service Name', 'Cost (USD)'],
+    ...data.map(s => [s.name, s.cost])
+  ];
+  const csv  = rows.map(r => r.join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = `nimbuscost-invoice-${selectedMonth}-2025.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   INFRA PAGE (devops only)
+══════════════════════════════════════════════════════════════════════════ */
+function renderInfra(mc) {
+  mc.innerHTML = `
+    <div class="page-header">
+      <div>
+        <div class="page-title">Infrastructure</div>
+        <div class="page-sub">AWS ap-south-1 · Real-time</div>
+      </div>
+    </div>
+
+    <div class="cards-grid">
+      <div class="metric-card">
+        <div class="mc-label"><span class="mc-icon">🖥</span> EC2 Instances</div>
+        <div class="mc-value">48</div>
+        <div><span class="badge badge-ok">44 running</span> <span class="badge badge-warn">4 stopped</span></div>
+      </div>
+      <div class="metric-card">
+        <div class="mc-label"><span class="mc-icon">🗄</span> RDS Clusters</div>
+        <div class="mc-value">6</div>
+        <div class="mc-sub">3 MySQL · 2 Postgres · 1 Aurora</div>
+      </div>
+      <div class="metric-card">
+        <div class="mc-label"><span class="mc-icon">⚡</span> Lambda Invocations</div>
+        <div class="mc-value">1.2M</div>
+        <div class="mc-sub">last 24 hours</div>
+      </div>
+      <div class="metric-card">
+        <div class="mc-label"><span class="mc-icon">🌐</span> CloudFront Reqs</div>
+        <div class="mc-value">8.4M</div>
+        <div class="mc-sub">last 30 days</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">CPU Utilization Trend</span>
+      </div>
+      <div class="panel-body">
+        <div class="chart-wrap"><canvas id="cpuChart"></canvas></div>
+      </div>
+    </div>
+  `;
+
+  // CPU trend chart
+  const ctx = document.getElementById('cpuChart').getContext('2d');
+  const labels = ['00:00','04:00','08:00','12:00','16:00','20:00','Now'];
+  activeCharts.cpu = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Avg CPU %',
+        data: [34, 28, 55, 72, 68, 62, 64],
+        borderColor: '#3b7ff5',
+        backgroundColor: 'rgba(59,127,245,.08)',
+        fill: true,
+        tension: .4,
+        pointRadius: 3,
+      }]
+    },
+    options: chartOptions('CPU %'),
+  });
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   HELPERS — HTML fragments
+══════════════════════════════════════════════════════════════════════════ */
+function servicesTableHTML(month) {
+  const data = SERVICES_DATA[month] || SERVICES_DATA['Jun'];
+  const total = data.reduce((s, r) => s + r.cost, 0);
+  return `
+    <table class="services-table">
+      <thead>
+        <tr>
+          <th>Service Name</th>
+          <th>Monthly Cost</th>
+          <th>% of Total</th>
+          <th>Usage</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${data.map(s => `
+          <tr>
+            <td><span class="svc-name"><span class="svc-icon">${s.icon}</span>${s.name}</span></td>
+            <td class="svc-cost">$${s.cost.toLocaleString()}</td>
+            <td class="svc-pct">${s.pct}%</td>
+            <td>
+              <div class="usage-bar-wrap">
+                <div class="usage-bar">
+                  <div class="usage-bar-fill" style="width:${s.pct}%"></div>
+                </div>
+                <span style="font-size:11px;color:var(--text-muted);width:30px;text-align:right">${s.pct}%</span>
+              </div>
+            </td>
+          </tr>
+        `).join('')}
+      </tbody>
+      <tfoot>
+        <tr>
+          <td style="font-weight:600;color:var(--text-primary);padding:12px 12px">Total</td>
+          <td class="svc-cost" style="padding:12px 12px">$${total.toLocaleString()}</td>
+          <td></td><td></td>
+        </tr>
+      </tfoot>
+    </table>`;
+}
+
+function healthMeter(label, valStr, pct, color) {
+  return `
+    <div class="health-meter">
+      <div class="health-label">${label}</div>
+      <div class="health-bar">
+        <div class="health-bar-fill" style="width:${pct}%;background:${color}"></div>
+      </div>
+      <div class="health-val">${valStr}</div>
+    </div>`;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   CHARTS
+══════════════════════════════════════════════════════════════════════════ */
+function chartOptions(yLabel) {
+  return {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        backgroundColor: '#111c30',
+        borderColor: 'rgba(255,255,255,.1)',
+        borderWidth: 1,
+        titleColor: '#e8edf5',
+        bodyColor: '#7a8ca8',
+      }
+    },
+    scales: {
+      x: {
+        grid: { color: 'rgba(255,255,255,.04)' },
+        ticks: { color: '#4a5a72', font: { size: 11 } },
+      },
+      y: {
+        grid: { color: 'rgba(255,255,255,.04)' },
+        ticks: {
+          color: '#4a5a72',
+          font: { size: 11 },
+          callback: v => yLabel === 'CPU %' ? v + '%' : '$' + v.toLocaleString(),
+        },
+      }
+    }
+  };
+}
+
+function drawSpendChart() {
+  requestAnimationFrame(() => {
+    const el = document.getElementById('spendChart');
+    if (!el) return;
+    const ctx = el.getContext('2d');
+    const vals = MONTHS.map(m => MONTHLY_TOTALS[m]);
+
+    activeCharts.spend = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: MONTHS.map(m => m + ' 2025'),
+        datasets: [{
+          label: 'Total Spend',
+          data: vals,
+          backgroundColor: MONTHS.map((_, i) =>
+            i === MONTHS.length - 1
+              ? 'rgba(59,127,245,.85)'
+              : 'rgba(59,127,245,.35)'
+          ),
+          borderColor: MONTHS.map((_, i) =>
+            i === MONTHS.length - 1
+              ? '#3b7ff5'
+              : 'rgba(59,127,245,.5)'
+          ),
+          borderWidth: 1,
+          borderRadius: 6,
+        }]
+      },
+      options: chartOptions('$'),
+    });
+  });
+}
+
+function destroyCharts() {
+  Object.values(activeCharts).forEach(c => { try { c.destroy(); } catch(e){} });
+  activeCharts = {};
+}
+
+/* ── Auto-restore session on page load ──────────────────────────────────── */
+restoreSession();
+</script>
+</body>
+</html>
