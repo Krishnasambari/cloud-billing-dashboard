@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react'
-import Dashboard from './pages/Dashboard'
-import ComparePage from './pages/ComparePage'
-import LoginPage from './pages/LoginPage'
-import AdminPanel from './pages/AdminPanel'
+import { useState, useEffect, lazy, Suspense } from 'react'
+const Dashboard   = lazy(() => import('./pages/Dashboard'))
+const ComparePage = lazy(() => import('./pages/ComparePage'))
+const LoginPage   = lazy(() => import('./pages/LoginPage'))
+const AdminPanel  = lazy(() => import('./pages/AdminPanel'))
 import SyncButton from './components/ui/SyncButton'
 import { getStoredToken, getStoredUser, clearAuth, fetchMe, fetchMyCards, type AuthUser } from './api/auth'
 import { fetchProfiles } from './api/sync'
@@ -74,7 +74,7 @@ export default function App() {
   }
 
   if (!authChecked && !user) return null
-  if (!user) return <LoginPage onLogin={handleLogin} />
+  if (!user) return <Suspense fallback={null}><LoginPage onLogin={handleLogin} /></Suspense>
 
   const initials = user.name.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()
   const showSync    = user.role === 'admin' || cards['button_sync'] !== false
@@ -100,7 +100,7 @@ export default function App() {
             <UserPill name={user.name} role="Admin" initials={initials} onLogout={handleLogout} />
           </div>
         </header>
-        <AdminPanel />
+        <Suspense fallback={null}><AdminPanel /></Suspense>
       </div>
     )
   }
@@ -183,17 +183,19 @@ export default function App() {
               />
             )}
             <div className="pl-3 border-l border-slate-700/60">
-              <UserPill name={user.name} role={user.job_role} initials={initials} onLogout={handleLogout} />
+              <UserPill name={user.name} role={user.role} initials={initials} onLogout={handleLogout} />
             </div>
           </div>
         </div>
       </header>
 
-      {page === 'dashboard' ? (
-        <Dashboard key={reloadKey} cards={cards} profile={selectedProfile} />
-      ) : (
-        <ComparePage key={reloadKey} cards={cards} profile={selectedProfile} />
-      )}
+      <Suspense fallback={null}>
+        {page === 'dashboard' ? (
+          <Dashboard key={reloadKey} cards={cards} profile={selectedProfile} />
+        ) : (
+          <ComparePage key={reloadKey} cards={cards} profile={selectedProfile} />
+        )}
+      </Suspense>
     </div>
   )
 }

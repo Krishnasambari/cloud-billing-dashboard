@@ -36,7 +36,11 @@
       "Bash(find D:/aws-reports/backend -name \"__pycache__\" -type d -exec rm -rf {} +)",
       "Bash(python -c \":*)",
       "Bash(cmd /c \"for /f \\\\\"tokens=5\\\\\" %a in \\('netstat -ano ^| findstr :8000 ^| findstr LISTENING'\\) do @echo PID=%a && taskkill /PID %a /F\" 2>&1)",
-      "Bash(cmd /c \"netstat -ano -p tcp | findstr :8000\")"
+      "Bash(cmd /c \"netstat -ano -p tcp | findstr :8000\")",
+      "Bash(npx plugins:*)",
+      "Bash(where claude:*)",
+      "Bash(claude --version)",
+      "Bash(claude plugin:*)"
     ]
   }
 }

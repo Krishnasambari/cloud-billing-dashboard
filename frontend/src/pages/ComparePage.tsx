@@ -8,7 +8,6 @@ import type { MonthlyCostItem, ServiceCostItem, NoteItem } from '../types/billin
 const fmtDate = (iso: string) =>
   iso ? new Date(iso + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'
 
-const fmtUSD = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 })
 
 function printSummaryPDF(notes: NoteItem[], from: string, to: string) {
   const win = window.open('', '_blank')
