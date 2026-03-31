@@ -37,3 +37,21 @@ export async function fetchResourceStats(region: string, profile?: string): Prom
   })
   return data
 }
+
+export interface ServiceDetailResponse {
+  service_name: string
+  columns: string[]
+  rows: Record<string, string>[]
+  count: number
+}
+
+export async function fetchServiceDetail(
+  serviceName: string,
+  region: string,
+  profile?: string,
+): Promise<ServiceDetailResponse> {
+  const { data } = await client.get('/resources/detail', {
+    params: { service_name: serviceName, region, ...(profile ? { profile } : {}) },
+  })
+  return data
+}

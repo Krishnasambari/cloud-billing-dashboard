@@ -41,7 +41,8 @@
       "Bash(where claude:*)",
       "Bash(claude --version)",
       "Bash(claude plugin:*)",
-      "Bash(git checkout:*)"
+      "Bash(git checkout:*)",
+      "Bash(pip --version)"
     ]
   }
 }

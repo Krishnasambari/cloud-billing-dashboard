@@ -503,3 +503,435 @@ def fetch_resource_stats(profile: str | None, region: str) -> dict:
         "S3": {"TotalBuckets": bucket_total},
         "LoadBalancers": {"Total": lb_total},
     }
+
+
+# ── per-service detail fetchers (rich tabular data) ──────────────────────────
+
+def _ec2_detail(profile: str | None, region: str) -> dict:
+    columns = ["Instance Name", "Instance ID", "Type", "State", "Elastic IP", "Volume Size"]
+
+    def fetch():
+        session = boto3.Session(profile_name=profile or None, region_name=region)
+        ec2 = session.client("ec2")
+
+        eip_map: dict[str, str] = {}
+        try:
+            for addr in ec2.describe_addresses().get("Addresses", []):
+                if addr.get("InstanceId"):
+                    eip_map[addr["InstanceId"]] = addr.get("PublicIp", "")
+        except Exception:
+            pass
+
+        vol_map: dict[str, int] = {}
+        try:
+            paginator = ec2.get_paginator("describe_volumes")
+            for page in paginator.paginate():
+                for v in page["Volumes"]:
+                    for att in v.get("Attachments", []):
+                        iid = att.get("InstanceId", "")
+                        if iid:
+                            vol_map[iid] = vol_map.get(iid, 0) + v.get("Size", 0)
+        except Exception:
+            pass
+
+        rows = []
+        paginator = ec2.get_paginator("describe_instances")
+        for page in paginator.paginate():
+            for r in page["Reservations"]:
+                for i in r["Instances"]:
+                    iid = i["InstanceId"]
+                    name = _tag(i.get("Tags", []))
+                    vol_gb = vol_map.get(iid, 0)
+                    rows.append({
+                        "Instance Name": name or "—",
+                        "Instance ID": iid,
+                        "Type": i.get("InstanceType", "—"),
+                        "State": i.get("State", {}).get("Name", "—"),
+                        "Elastic IP": eip_map.get(iid, "—"),
+                        "Volume Size": f"{vol_gb} GB" if vol_gb else "—",
+                    })
+        return rows
+
+    return {"columns": columns, "rows": _safe(fetch) or []}
+
+
+def _rds_detail(profile: str | None, region: str) -> dict:
+    columns = ["DB Identifier", "Engine", "Class", "Status", "Multi-AZ", "Storage (GB)"]
+
+    def fetch():
+        rds = boto3.Session(profile_name=profile or None, region_name=region).client("rds")
+        rows = []
+        paginator = rds.get_paginator("describe_db_instances")
+        for page in paginator.paginate():
+            for db in page["DBInstances"]:
+                rows.append({
+                    "DB Identifier": db["DBInstanceIdentifier"],
+                    "Engine": f"{db.get('Engine','')} {db.get('EngineVersion','')}",
+                    "Class": db.get("DBInstanceClass", "—"),
+                    "Status": db.get("DBInstanceStatus", "—"),
+                    "Multi-AZ": "Yes" if db.get("MultiAZ") else "No",
+                    "Storage (GB)": str(db.get("AllocatedStorage", "—")),
+                })
+        return rows
+
+    return {"columns": columns, "rows": _safe(fetch) or []}
+
+
+def _s3_detail(profile: str | None) -> dict:
+    columns = ["Bucket Name", "Creation Date"]
+
+    def fetch():
+        s3 = boto3.Session(profile_name=profile or None).client("s3")
+        rows = []
+        for b in s3.list_buckets().get("Buckets", []):
+            rows.append({
+                "Bucket Name": b["Name"],
+                "Creation Date": str(b.get("CreationDate", ""))[:10],
+            })
+        return rows
+
+    return {"columns": columns, "rows": _safe(fetch) or []}
+
+
+def _lambda_detail(profile: str | None, region: str) -> dict:
+    columns = ["Function Name", "Runtime", "Memory (MB)", "Timeout (s)"]
+
+    def fetch():
+        fn = boto3.Session(profile_name=profile or None, region_name=region).client("lambda")
+        rows = []
+        paginator = fn.get_paginator("list_functions")
+        for page in paginator.paginate():
+            for f in page["Functions"]:
+                rows.append({
+                    "Function Name": f["FunctionName"],
+                    "Runtime": f.get("Runtime", "—"),
+                    "Memory (MB)": str(f.get("MemorySize", "—")),
+                    "Timeout (s)": str(f.get("Timeout", "—")),
+                })
+        return rows
+
+    return {"columns": columns, "rows": _safe(fetch) or []}
+
+
+def _cloudfront_detail(profile: str | None) -> dict:
+    columns = ["Domain / Alias", "Distribution ID", "Status", "Origins"]
+
+    def fetch():
+        cf = boto3.Session(profile_name=profile or None).client("cloudfront")
+        rows = []
+        paginator = cf.get_paginator("list_distributions")
+        for page in paginator.paginate():
+            for d in page.get("DistributionList", {}).get("Items", []):
+                alias = (d.get("Aliases", {}).get("Items") or [d["DomainName"]])[0]
+                origins = ", ".join(
+                    o["DomainName"]
+                    for o in d.get("Origins", {}).get("Items", [])
+                )
+                rows.append({
+                    "Domain / Alias": alias,
+                    "Distribution ID": d["Id"],
+                    "Status": d.get("Status", "—"),
+                    "Origins": origins or "—",
+                })
+        return rows
+
+    return {"columns": columns, "rows": _safe(fetch) or []}
+
+
+def _elb_detail(profile: str | None, region: str) -> dict:
+    columns = ["Name", "Type", "State", "DNS Name"]
+
+    def fetch():
+        elb = boto3.Session(profile_name=profile or None, region_name=region).client("elbv2")
+        rows = []
+        paginator = elb.get_paginator("describe_load_balancers")
+        for page in paginator.paginate():
+            for lb in page["LoadBalancers"]:
+                rows.append({
+                    "Name": lb["LoadBalancerName"],
+                    "Type": lb.get("Type", "—"),
+                    "State": lb.get("State", {}).get("Code", "—"),
+                    "DNS Name": lb.get("DNSName", "—"),
+                })
+        return rows
+
+    return {"columns": columns, "rows": _safe(fetch) or []}
+
+
+def _elasticache_detail(profile: str | None, region: str) -> dict:
+    columns = ["Cluster ID", "Engine", "Node Type", "Status", "Nodes"]
+
+    def fetch():
+        ec = boto3.Session(profile_name=profile or None, region_name=region).client("elasticache")
+        rows = []
+        paginator = ec.get_paginator("describe_cache_clusters")
+        for page in paginator.paginate():
+            for c in page["CacheClusters"]:
+                rows.append({
+                    "Cluster ID": c["CacheClusterId"],
+                    "Engine": f"{c.get('Engine','')} {c.get('EngineVersion','')}",
+                    "Node Type": c.get("CacheNodeType", "—"),
+                    "Status": c.get("CacheClusterStatus", "—"),
+                    "Nodes": str(c.get("NumCacheNodes", "—")),
+                })
+        return rows
+
+    return {"columns": columns, "rows": _safe(fetch) or []}
+
+
+def _sqs_detail(profile: str | None, region: str) -> dict:
+    columns = ["Queue Name", "URL"]
+
+    def fetch():
+        sqs = boto3.Session(profile_name=profile or None, region_name=region).client("sqs")
+        rows = []
+        for url in sqs.list_queues().get("QueueUrls", []):
+            name = url.rstrip("/").split("/")[-1]
+            rows.append({"Queue Name": name, "URL": url})
+        return rows
+
+    return {"columns": columns, "rows": _safe(fetch) or []}
+
+
+def _sns_detail(profile: str | None, region: str) -> dict:
+    columns = ["Topic Name", "ARN"]
+
+    def fetch():
+        sns = boto3.Session(profile_name=profile or None, region_name=region).client("sns")
+        rows = []
+        paginator = sns.get_paginator("list_topics")
+        for page in paginator.paginate():
+            for t in page["Topics"]:
+                arn = t["TopicArn"]
+                rows.append({"Topic Name": arn.split(":")[-1], "ARN": arn})
+        return rows
+
+    return {"columns": columns, "rows": _safe(fetch) or []}
+
+
+def _route53_detail(profile: str | None) -> dict:
+    columns = ["Zone Name", "Type", "Zone ID"]
+
+    def fetch():
+        r53 = boto3.Session(profile_name=profile or None).client("route53")
+        rows = []
+        paginator = r53.get_paginator("list_hosted_zones")
+        for page in paginator.paginate():
+            for z in page["HostedZones"]:
+                rows.append({
+                    "Zone Name": z["Name"],
+                    "Type": "Private" if z.get("Config", {}).get("PrivateZone") else "Public",
+                    "Zone ID": z["Id"].split("/")[-1],
+                })
+        return rows
+
+    return {"columns": columns, "rows": _safe(fetch) or []}
+
+
+def _kms_detail(profile: str | None, region: str) -> dict:
+    columns = ["Key ID", "Description", "State"]
+
+    def fetch():
+        kms = boto3.Session(profile_name=profile or None, region_name=region).client("kms")
+        rows = []
+        paginator = kms.get_paginator("list_keys")
+        for page in paginator.paginate():
+            for k in page["Keys"]:
+                try:
+                    meta = kms.describe_key(KeyId=k["KeyId"])["KeyMetadata"]
+                    if meta.get("KeyState") == "Enabled":
+                        rows.append({
+                            "Key ID": k["KeyId"],
+                            "Description": meta.get("Description", "—") or "—",
+                            "State": meta.get("KeyState", "—"),
+                        })
+                except Exception:
+                    pass
+        return rows
+
+    return {"columns": columns, "rows": _safe(fetch) or []}
+
+
+def _secrets_detail(profile: str | None, region: str) -> dict:
+    columns = ["Name", "Description", "Last Changed"]
+
+    def fetch():
+        sm = boto3.Session(profile_name=profile or None, region_name=region).client("secretsmanager")
+        rows = []
+        paginator = sm.get_paginator("list_secrets")
+        for page in paginator.paginate():
+            for s in page["SecretList"]:
+                rows.append({
+                    "Name": s["Name"],
+                    "Description": s.get("Description", "—") or "—",
+                    "Last Changed": str(s.get("LastChangedDate", "—"))[:10],
+                })
+        return rows
+
+    return {"columns": columns, "rows": _safe(fetch) or []}
+
+
+def _codepipeline_detail(profile: str | None, region: str) -> dict:
+    columns = ["Pipeline Name", "Created"]
+
+    def fetch():
+        cp = boto3.Session(profile_name=profile or None, region_name=region).client("codepipeline")
+        rows = []
+        for p in cp.list_pipelines().get("pipelines", []):
+            rows.append({
+                "Pipeline Name": p["name"],
+                "Created": str(p.get("created", "—"))[:10],
+            })
+        return rows
+
+    return {"columns": columns, "rows": _safe(fetch) or []}
+
+
+def _codecommit_detail(profile: str | None, region: str) -> dict:
+    columns = ["Repository Name", "Description"]
+
+    def fetch():
+        cc = boto3.Session(profile_name=profile or None, region_name=region).client("codecommit")
+        rows = []
+        for r in cc.list_repositories().get("repositories", []):
+            rows.append({
+                "Repository Name": r["repositoryName"],
+                "Description": r.get("repositoryDescription", "—") or "—",
+            })
+        return rows
+
+    return {"columns": columns, "rows": _safe(fetch) or []}
+
+
+def _firehose_detail(profile: str | None, region: str) -> dict:
+    columns = ["Stream Name"]
+
+    def fetch():
+        fh = boto3.Session(profile_name=profile or None, region_name=region).client("firehose")
+        rows = []
+        for name in fh.list_delivery_streams().get("DeliveryStreamNames", []):
+            rows.append({"Stream Name": name})
+        return rows
+
+    return {"columns": columns, "rows": _safe(fetch) or []}
+
+
+def _waf_detail(profile: str | None, region: str) -> dict:
+    columns = ["ACL Name", "Scope", "ID"]
+
+    def fetch():
+        waf = boto3.Session(profile_name=profile or None, region_name=region).client("wafv2")
+        rows = []
+        for scope in ("REGIONAL", "CLOUDFRONT"):
+            try:
+                for acl in waf.list_web_acls(Scope=scope, Limit=100).get("WebACLs", []):
+                    rows.append({"ACL Name": acl["Name"], "Scope": scope, "ID": acl["Id"]})
+            except Exception:
+                pass
+        return rows
+
+    return {"columns": columns, "rows": _safe(fetch) or []}
+
+
+def _apigateway_detail(profile: str | None, region: str) -> dict:
+    columns = ["API Name", "API ID", "Description"]
+
+    def fetch():
+        apigw = boto3.Session(profile_name=profile or None, region_name=region).client("apigateway")
+        rows = []
+        paginator = apigw.get_paginator("get_rest_apis")
+        for page in paginator.paginate():
+            for api in page["items"]:
+                rows.append({
+                    "API Name": api["name"],
+                    "API ID": api["id"],
+                    "Description": api.get("description", "—") or "—",
+                })
+        return rows
+
+    return {"columns": columns, "rows": _safe(fetch) or []}
+
+
+def _natgw_detail(profile: str | None, region: str) -> dict:
+    columns = ["Name", "NAT Gateway ID", "State", "VPC ID"]
+
+    def fetch():
+        ec2 = boto3.Session(profile_name=profile or None, region_name=region).client("ec2")
+        rows = []
+        paginator = ec2.get_paginator("describe_nat_gateways")
+        for page in paginator.paginate():
+            for gw in page["NatGateways"]:
+                name = _tag(gw.get("Tags", []))
+                rows.append({
+                    "Name": name or "—",
+                    "NAT Gateway ID": gw["NatGatewayId"],
+                    "State": gw.get("State", "—"),
+                    "VPC ID": gw.get("VpcId", "—"),
+                })
+        return rows
+
+    return {"columns": columns, "rows": _safe(fetch) or []}
+
+
+def _cloudwatch_detail(profile: str | None, region: str) -> dict:
+    columns = ["Alarm Name", "State", "Metric"]
+
+    def fetch():
+        cw = boto3.Session(profile_name=profile or None, region_name=region).client("cloudwatch")
+        rows = []
+        paginator = cw.get_paginator("describe_alarms")
+        for page in paginator.paginate():
+            for alarm in page["MetricAlarms"]:
+                rows.append({
+                    "Alarm Name": alarm["AlarmName"],
+                    "State": alarm.get("StateValue", "—"),
+                    "Metric": alarm.get("MetricName", "—"),
+                })
+        return rows
+
+    return {"columns": columns, "rows": _safe(fetch) or []}
+
+
+# ── service detail dispatch ───────────────────────────────────────────────────
+
+def fetch_service_detail(service_name: str, profile: str | None, region: str) -> dict:
+    key = service_name.lower()
+    if any(k in key for k in ["elastic compute cloud", "ec2"]):
+        return _ec2_detail(profile, region)
+    if "relational database" in key:
+        return _rds_detail(profile, region)
+    if any(k in key for k in ["simple storage service", "amazon s3", "s3"]):
+        return _s3_detail(profile)
+    if "lambda" in key:
+        return _lambda_detail(profile, region)
+    if "cloudfront" in key:
+        return _cloudfront_detail(profile)
+    if "elastic load balancing" in key:
+        return _elb_detail(profile, region)
+    if "elasticache" in key:
+        return _elasticache_detail(profile, region)
+    if any(k in key for k in ["simple queue service", "sqs"]):
+        return _sqs_detail(profile, region)
+    if any(k in key for k in ["simple notification service", "sns"]):
+        return _sns_detail(profile, region)
+    if "route 53" in key:
+        return _route53_detail(profile)
+    if any(k in key for k in ["key management service", "kms"]):
+        return _kms_detail(profile, region)
+    if "secrets manager" in key:
+        return _secrets_detail(profile, region)
+    if "codepipeline" in key:
+        return _codepipeline_detail(profile, region)
+    if "codecommit" in key:
+        return _codecommit_detail(profile, region)
+    if any(k in key for k in ["kinesis", "firehose"]):
+        return _firehose_detail(profile, region)
+    if "waf" in key:
+        return _waf_detail(profile, region)
+    if "api gateway" in key:
+        return _apigateway_detail(profile, region)
+    if any(k in key for k in ["virtual private cloud", "vpc", "nat"]):
+        return _natgw_detail(profile, region)
+    if "cloudwatch" in key:
+        return _cloudwatch_detail(profile, region)
+    return {"columns": [], "rows": []}
