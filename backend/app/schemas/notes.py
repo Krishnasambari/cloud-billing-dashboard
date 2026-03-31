@@ -10,6 +10,7 @@ class NoteUpsertRequest(BaseModel):
     note_date: str   # YYYY-MM-DD
     resource_id: str | None = None
     resource_name: str | None = None
+    filter_name: str | None = None
 
 
 class NoteItem(BaseModel):
@@ -21,6 +22,7 @@ class NoteItem(BaseModel):
     note_date: str
     resource_id: str | None
     resource_name: str | None
+    filter_name: str | None
     created_at: str
 
     model_config = {"from_attributes": True}

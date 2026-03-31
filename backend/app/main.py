@@ -37,6 +37,12 @@ def _migrate_db() -> None:
     """Run incremental SQLite migrations that create_all can't handle."""
     from sqlalchemy import inspect, text
     inspector = inspect(engine)
+    if "service_notes" in inspector.get_table_names():
+        note_cols = [c["name"] for c in inspector.get_columns("service_notes")]
+        if "filter_name" not in note_cols:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE service_notes ADD COLUMN filter_name VARCHAR(20)"))
+
     if "monthly_costs" not in inspector.get_table_names():
         return
     cols = [c["name"] for c in inspector.get_columns("monthly_costs")]

@@ -401,3 +401,105 @@ def fetch_resources(service_name: str, profile: str | None = None) -> list[dict]
         if any(k in key for k in keywords):
             return fetcher(profile)
     return []
+
+
+def fetch_resource_stats(profile: str | None, region: str) -> dict:
+    """Return summary counts for the Resources dashboard page."""
+
+    def session():
+        return boto3.Session(profile_name=profile or None, region_name=region)
+
+    # ── EC2 instances ────────────────────────────────────────────────────────
+    ec2_total = ec2_running = ec2_stopped = 0
+    try:
+        ec2 = session().client("ec2")
+        paginator = ec2.get_paginator("describe_instances")
+        for page in paginator.paginate():
+            for r in page["Reservations"]:
+                for i in r["Instances"]:
+                    ec2_total += 1
+                    state = i.get("State", {}).get("Name", "")
+                    if state == "running":
+                        ec2_running += 1
+                    elif state == "stopped":
+                        ec2_stopped += 1
+    except Exception:
+        pass
+
+    # ── Elastic IPs ──────────────────────────────────────────────────────────
+    eip_total = eip_attached = eip_free = 0
+    try:
+        ec2 = session().client("ec2")
+        resp = ec2.describe_addresses()
+        for addr in resp.get("Addresses", []):
+            eip_total += 1
+            if addr.get("AssociationId"):
+                eip_attached += 1
+            else:
+                eip_free += 1
+    except Exception:
+        pass
+
+    # ── EBS Volumes ──────────────────────────────────────────────────────────
+    vol_total = vol_used = vol_free = 0
+    try:
+        ec2 = session().client("ec2")
+        paginator = ec2.get_paginator("describe_volumes")
+        for page in paginator.paginate():
+            for v in page["Volumes"]:
+                vol_total += 1
+                if v.get("State") == "in-use":
+                    vol_used += 1
+                elif v.get("State") == "available":
+                    vol_free += 1
+    except Exception:
+        pass
+
+    # ── Snapshots (owned by self) ────────────────────────────────────────────
+    snap_total = 0
+    try:
+        ec2 = session().client("ec2")
+        paginator = ec2.get_paginator("describe_snapshots")
+        for page in paginator.paginate(OwnerIds=["self"]):
+            snap_total += len(page.get("Snapshots", []))
+    except Exception:
+        pass
+
+    # ── AMIs (owned by self) ─────────────────────────────────────────────────
+    ami_total = 0
+    try:
+        ec2 = session().client("ec2")
+        resp = ec2.describe_images(Owners=["self"])
+        ami_total = len(resp.get("Images", []))
+    except Exception:
+        pass
+
+    # ── S3 Buckets (global) ──────────────────────────────────────────────────
+    bucket_total = 0
+    try:
+        s3 = boto3.Session(profile_name=profile or None).client("s3")
+        resp = s3.list_buckets()
+        bucket_total = len(resp.get("Buckets", []))
+    except Exception:
+        pass
+
+    # ── Load Balancers ───────────────────────────────────────────────────────
+    lb_total = 0
+    try:
+        elb = session().client("elbv2")
+        paginator = elb.get_paginator("describe_load_balancers")
+        for page in paginator.paginate():
+            lb_total += len(page.get("LoadBalancers", []))
+    except Exception:
+        pass
+
+    return {
+        "region": region,
+        "EC2": {"Total": ec2_total, "Running": ec2_running, "Stopped": ec2_stopped},
+        "ElasticIP": {"Total": eip_total, "Attached": eip_attached, "NotAttached": eip_free},
+        "Volumes": {"Total": vol_total, "InUse": vol_used, "Available": vol_free},
+        "Snapshots": {"Total": snap_total},
+        "AMIs": {"Total": ami_total},
+        "S3": {"TotalBuckets": bucket_total},
+        "LoadBalancers": {"Total": lb_total},
+    }

@@ -40,7 +40,8 @@
       "Bash(npx plugins:*)",
       "Bash(where claude:*)",
       "Bash(claude --version)",
-      "Bash(claude plugin:*)"
+      "Bash(claude plugin:*)",
+      "Bash(git checkout:*)"
     ]
   }
 }

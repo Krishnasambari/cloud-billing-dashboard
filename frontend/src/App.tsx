@@ -1,13 +1,14 @@
 import { useState, useEffect, lazy, Suspense } from 'react'
-const Dashboard   = lazy(() => import('./pages/Dashboard'))
-const ComparePage = lazy(() => import('./pages/ComparePage'))
-const LoginPage   = lazy(() => import('./pages/LoginPage'))
-const AdminPanel  = lazy(() => import('./pages/AdminPanel'))
+const Dashboard     = lazy(() => import('./pages/Dashboard'))
+const ComparePage   = lazy(() => import('./pages/ComparePage'))
+const LoginPage     = lazy(() => import('./pages/LoginPage'))
+const AdminPanel    = lazy(() => import('./pages/AdminPanel'))
+const ResourcesPage = lazy(() => import('./pages/ResourcesPage'))
 import SyncButton from './components/ui/SyncButton'
 import { getStoredToken, getStoredUser, clearAuth, fetchMe, fetchMyCards, type AuthUser } from './api/auth'
 import { fetchProfiles } from './api/sync'
 
-type Page = 'dashboard' | 'compare'
+type Page = 'dashboard' | 'compare' | 'resources'
 
 export default function App() {
   const [user, setUser]                       = useState<AuthUser | null>(null)
@@ -77,8 +78,9 @@ export default function App() {
   if (!user) return <Suspense fallback={null}><LoginPage onLogin={handleLogin} /></Suspense>
 
   const initials = user.name.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()
-  const showSync    = user.role === 'admin' || cards['button_sync'] !== false
-  const showCompare = user.role === 'admin' || cards['page_compare'] !== false
+  const showSync      = user.role === 'admin' || cards['button_sync'] !== false
+  const showCompare   = user.role === 'admin' || cards['page_compare'] !== false
+  const showResources = user.role === 'admin' || cards['page_resources'] !== false
 
   // ── Admin view ────────────────────────────────────────────────────────────
   if (user.role === 'admin') {
@@ -145,6 +147,18 @@ export default function App() {
                   Compare
                 </button>
               )}
+              {showResources && (
+                <button
+                  onClick={() => setPage('resources')}
+                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                    page === 'resources'
+                      ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                  }`}
+                >
+                  Resources
+                </button>
+              )}
             </nav>
           </div>
 
@@ -192,8 +206,10 @@ export default function App() {
       <Suspense fallback={null}>
         {page === 'dashboard' ? (
           <Dashboard key={reloadKey} cards={cards} profile={selectedProfile} />
-        ) : (
+        ) : page === 'compare' ? (
           <ComparePage key={reloadKey} cards={cards} profile={selectedProfile} />
+        ) : (
+          <ResourcesPage profile={selectedProfile} />
         )}
       </Suspense>
     </div>

@@ -15,6 +15,7 @@ class ServiceNote(Base):
     note_date: Mapped[str] = mapped_column(String(10), nullable=False)   # YYYY-MM-DD
     resource_id: Mapped[str | None] = mapped_column(String(500), nullable=True)
     resource_name: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    filter_name: Mapped[str | None] = mapped_column(String(20), nullable=True)
     created_at: Mapped[str] = mapped_column(String(30), nullable=False)
 
     __table_args__ = (

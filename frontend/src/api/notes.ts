@@ -19,6 +19,7 @@ export async function upsertNote(payload: {
   note_date: string
   resource_id?: string | null
   resource_name?: string | null
+  filter_name?: string | null
 }): Promise<NoteItem> {
   const { data } = await client.post('/notes', payload)
   return data

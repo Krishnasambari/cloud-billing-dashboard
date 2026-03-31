@@ -1,9 +1,17 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Query
-from app.services.aws_resources import fetch_resources
+from app.services.aws_resources import fetch_resources, fetch_resource_stats
 
 router = APIRouter()
+
+
+@router.get("/stats")
+def get_resource_stats(
+    region: str = Query(default="ap-south-1"),
+    profile: str = Query(default=""),
+):
+    return fetch_resource_stats(profile=profile or None, region=region)
 
 
 @router.get("")

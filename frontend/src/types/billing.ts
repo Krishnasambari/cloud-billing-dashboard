@@ -52,6 +52,7 @@ export interface NoteItem {
   note_date: string
   resource_id: string | null
   resource_name: string | null
+  filter_name: string | null
   created_at: string
 }
 

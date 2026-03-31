@@ -138,6 +138,7 @@ export default function ComparePage({ cards, profile }: Props) {
   const [formService, setFormService] = useState('')
   const [formNote, setFormNote] = useState('')
   const [formDate, setFormDate] = useState(() => new Date().toISOString().slice(0, 10))
+  const [formPriceFilter, setFormPriceFilter] = useState<'price_up' | 'price_down' | ''>('')
   const [formSaving, setFormSaving] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
   const [formSuccess, setFormSuccess] = useState(false)
@@ -210,6 +211,7 @@ export default function ComparePage({ cards, profile }: Props) {
   useEffect(() => {
     setFormService('')
     setFormNote('')
+    setFormPriceFilter('')
     setFormError(null)
     setResources([])
     setFormResourceId('')
@@ -242,10 +244,11 @@ export default function ComparePage({ cards, profile }: Props) {
       .finally(() => setResourcesLoading(false))
   }, [formService])
 
-  // Click a row → pre-fill form
+  // Click a row → select service, leave note empty
   const handleRowClick = (serviceName: string) => {
     setFormService(serviceName)
-    setFormNote(notes.get(serviceName)?.note ?? '')
+    setFormNote('')
+    setFormPriceFilter('')
     setFormError(null)
     setFormSuccess(false)
   }
@@ -264,6 +267,7 @@ export default function ComparePage({ cards, profile }: Props) {
         note_date: formDate,
         resource_id: formResourceId || null,
         resource_name: formResourceName || null,
+        filter_name: formPriceFilter || null,
       })
       setNotes((prev) => new Map(prev).set(saved.service_name, saved))
       setFormSuccess(true)
@@ -410,11 +414,10 @@ export default function ComparePage({ cards, profile }: Props) {
               <div className="overflow-auto">
                 <table className="w-full table-fixed text-xs">
                   <colgroup>
-                    <col style={{ width: '36%' }} />
-                    <col style={{ width: '14%' }} />
-                    <col style={{ width: '14%' }} />
-                    <col style={{ width: '14%' }} />
-                    <col style={{ width: '22%' }} />
+                    <col style={{ width: '46%' }} />
+                    <col style={{ width: '18%' }} />
+                    <col style={{ width: '18%' }} />
+                    <col style={{ width: '18%' }} />
                   </colgroup>
                   <thead>
                     <tr className="text-[10px] text-slate-500 uppercase tracking-wider border-b border-slate-800">
@@ -422,7 +425,6 @@ export default function ComparePage({ cards, profile }: Props) {
                       <th className="py-2 text-right font-semibold">{labelA}</th>
                       <th className="py-2 text-right font-semibold">{labelB}</th>
                       <th className="py-2 text-right font-semibold">Diff</th>
-                      {canAddReason && <th className="px-4 py-2 text-left font-semibold">Reason</th>}
                     </tr>
                   </thead>
                   <tbody>
@@ -451,36 +453,6 @@ export default function ComparePage({ cards, profile }: Props) {
                           }`}>
                             {row.diff === 0 ? '—' : fmtDiff(row.diff)}
                           </td>
-                          {canAddReason && (
-                          <td className="px-4 py-1.5">
-                            {existingNote ? (
-                              <div className="flex items-start justify-between gap-1 group">
-                                <div className="min-w-0">
-                                  {existingNote.resource_name && (
-                                    <p className="text-[10px] text-blue-400 truncate mb-0.5">{existingNote.resource_name}</p>
-                                  )}
-                                  <span
-                                    className="text-slate-300 leading-tight line-clamp-2"
-                                    title={existingNote.note}
-                                  >
-                                    {existingNote.note}
-                                  </span>
-                                </div>
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); handleDeleteNote(row.service_name) }}
-                                  className="opacity-0 group-hover:opacity-100 text-slate-600 hover:text-red-400 shrink-0 transition-opacity"
-                                  title="Delete reason"
-                                >
-                                  ✕
-                                </button>
-                              </div>
-                            ) : notesLoading ? (
-                              <span className="text-slate-700">…</span>
-                            ) : (
-                              <span className="text-slate-700 italic">—</span>
-                            )}
-                          </td>
-                          )}
                         </tr>
                       )
                     })}
@@ -493,7 +465,6 @@ export default function ComparePage({ cards, profile }: Props) {
                       <td className={`py-2 text-right font-mono ${totalDiff > 0 ? 'text-red-400' : totalDiff < 0 ? 'text-emerald-400' : 'text-slate-400'}`}>
                         {fmtDiff(totalDiff)}
                       </td>
-                      {canAddReason && <td />}
                     </tr>
                   </tfoot>
                 </table>
@@ -528,7 +499,8 @@ export default function ComparePage({ cards, profile }: Props) {
                     value={formService}
                     onChange={(e) => {
                       setFormService(e.target.value)
-                      setFormNote(notes.get(e.target.value)?.note ?? '')
+                      setFormNote('')
+                      setFormPriceFilter('')
                       setFormSuccess(false)
                     }}
                     className="w-full bg-slate-800 border border-slate-700 text-white text-xs rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -617,6 +589,25 @@ export default function ComparePage({ cards, profile }: Props) {
                     )}
                   </div>
                 )}
+
+                {/* Price */}
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-widest">Price</label>
+                  <div className="relative">
+                    <select
+                      value={formPriceFilter}
+                      onChange={(e) => setFormPriceFilter(e.target.value as 'price_up' | 'price_down' | '')}
+                      className="w-full bg-slate-800 border border-slate-700 text-white text-xs rounded-lg pl-3 pr-7 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none"
+                    >
+                      <option value="">— Select —</option>
+                      <option value="price_up">▲ Price Up</option>
+                      <option value="price_down">▼ Price Down</option>
+                    </select>
+                    <svg className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </div>
+                </div>
 
                 {/* Reason */}
                 <div className="flex flex-col gap-1.5">

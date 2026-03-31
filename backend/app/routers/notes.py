@@ -27,6 +27,7 @@ def upsert_note(body: NoteUpsertRequest, db: Session = Depends(get_db)):
         note_date=body.note_date,
         resource_id=body.resource_id,
         resource_name=body.resource_name,
+        filter_name=body.filter_name,
         created_at=now,
     )
     stmt = stmt.on_conflict_do_update(
@@ -36,6 +37,7 @@ def upsert_note(body: NoteUpsertRequest, db: Session = Depends(get_db)):
             "note_date": body.note_date,
             "resource_id": body.resource_id,
             "resource_name": body.resource_name,
+            "filter_name": body.filter_name,
             "created_at": now,
         },
     )
