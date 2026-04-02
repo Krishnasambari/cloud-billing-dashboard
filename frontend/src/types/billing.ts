@@ -53,6 +53,7 @@ export interface NoteItem {
   resource_id: string | null
   resource_name: string | null
   filter_name: string | null
+  aws_profile: string
   created_at: string
 }
 

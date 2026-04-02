@@ -26,6 +26,7 @@ interface Props {
   // Forecast badge text
   forecastBadge?: string
   forecastBadgeColor?: 'red' | 'green' | 'amber'
+  variant?: 'primary' | 'neutral' | 'ytd' | 'trend' | 'forecast'
 }
 
 export default function CostCard({
@@ -41,6 +42,7 @@ export default function CostCard({
   diffAmount,
   forecastBadge,
   forecastBadgeColor = 'amber',
+  variant,
 }: Props) {
   const isPositiveTrend = trend !== null && trend !== undefined && trend > 0
   const isNegativeTrend = trend !== null && trend !== undefined && trend < 0
@@ -58,17 +60,31 @@ export default function CostCard({
   const diffINR = hasDiff ? `${diffSign}${fmtINR.format(diffAmount! * exchangeRate)}` : null
 
   const badgeColor =
-    forecastBadgeColor === 'red'   ? 'bg-red-500/10 text-red-400 border-red-500/20' :
-    forecastBadgeColor === 'green' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
-                                     'bg-amber-500/10 text-amber-400 border-amber-500/20'
+    forecastBadgeColor === 'red' ? 'bg-red-500/10 text-red-400 border-red-500/20' :
+      forecastBadgeColor === 'green' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
+        'bg-amber-500/10 text-amber-400 border-amber-500/20'
 
+  const variantStyles = {
+
+  primary: 'bg-gradient-to-b from-emerald-900/40 to-slate-950 border border-emerald-500/20',
+
+  neutral: 'bg-gradient-to-b from-emerald-900/40 to-slate-950 border border-emerald-500/20',
+  ytd: 'bg-gradient-to-b from-emerald-900/40 to-slate-950 border border-emerald-500/20',
+
+  trend:
+    isPositiveTrend
+      ? 'bg-gradient-to-b from-emerald-900/40 to-slate-950 border border-emerald-500/20'
+      : isNegativeTrend
+        ? 'bg-gradient-to-b from-emerald-900/40 to-slate-950 border border-emerald-500/20'
+        : 'bg-gradient-to-b from-emerald-900/40 to-slate-950 border border-emerald-500/20',
+  forecast: 'bg-gradient-to-b from-emerald-900/40 to-slate-950 border border-emerald-500/20',
+
+  }
+
+  const cardStyle = variantStyles[variant || 'neutral']
   return (
     <div
-      className={`relative rounded-xl p-5 flex flex-col gap-3 overflow-hidden transition-all ${
-        highlight
-          ? 'bg-gradient-to-br from-blue-600/20 to-blue-500/5 border border-blue-500/25'
-          : 'bg-slate-900/70 border border-slate-800 hover:border-slate-700'
-      }`}
+      className={`relative rounded-xl flex flex-col gap-3 overflow-hidden transition-all ${cardStyle} !p-4`}
     >
       {highlight && (
         <div className="absolute inset-0 bg-blue-500/5 rounded-xl pointer-events-none" />
@@ -123,13 +139,12 @@ export default function CostCard({
 
       {/* Trend pill */}
       {hasTrend && (
-        <div className={`flex items-center gap-1 text-xs font-medium rounded-md px-2 py-1 w-fit ${
-          isNegativeTrend
-            ? 'bg-emerald-500/10 text-emerald-400'
-            : isPositiveTrend
-              ? 'bg-red-500/10 text-red-400'
-              : 'bg-slate-700/50 text-slate-400'
-        }`}>
+        <div className={`flex items-center gap-1 text-xs font-medium rounded-md px-2 py-1 w-fit ${isNegativeTrend
+          ? 'bg-emerald-500/10 text-emerald-400'
+          : isPositiveTrend
+            ? 'bg-red-500/10 text-red-400'
+            : 'bg-slate-700/50 text-slate-400'
+          }`}>
           {isNegativeTrend ? '▼' : isPositiveTrend ? '▲' : null}
           {' '}{Math.abs(trend!).toFixed(1)}% vs last month
         </div>

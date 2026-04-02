@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     DB_PATH: str = "../data/billing.db"
     CORS_ORIGINS: List[str] = ["http://localhost:5173"]
     SYNC_MONTHS_DEFAULT: int = 12
+    SECRET_KEY: str = "change-me-in-production"
 
     model_config = {"env_file": "../../.env", "env_file_encoding": "utf-8"}
 

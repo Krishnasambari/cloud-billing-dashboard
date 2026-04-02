@@ -11,6 +11,7 @@ class NoteUpsertRequest(BaseModel):
     resource_id: str | None = None
     resource_name: str | None = None
     filter_name: str | None = None
+    aws_profile: str = "default"
 
 
 class NoteItem(BaseModel):
@@ -23,6 +24,7 @@ class NoteItem(BaseModel):
     resource_id: str | None
     resource_name: str | None
     filter_name: str | None
+    aws_profile: str
     created_at: str
 
     model_config = {"from_attributes": True}

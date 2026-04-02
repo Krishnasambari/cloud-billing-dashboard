@@ -5,6 +5,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.deps import get_current_user
+from app.models.user import User
 from app.schemas.billing import (
     MonthlyCostListResponse,
     MonthlyCostItem,
@@ -27,6 +29,7 @@ def list_monthly_costs(
     limit: int = Query(24, ge=1, le=120),
     profile: str = Query("", description="AWS CLI profile name"),
     db: Session = Depends(get_db),
+    _user: User = Depends(get_current_user),
 ):
     rows = billing_service.get_monthly_costs(db, year=year, limit=limit, profile=profile)
     items = [
@@ -45,7 +48,7 @@ def list_monthly_costs(
 
 
 @router.get("/monthly/{year}/{month}", response_model=MonthlyCostItem)
-def get_monthly_cost(year: int, month: int, profile: str = Query("", description="AWS CLI profile name"), db: Session = Depends(get_db)):
+def get_monthly_cost(year: int, month: int, profile: str = Query("", description="AWS CLI profile name"), db: Session = Depends(get_db), _user: User = Depends(get_current_user)):
     row = billing_service.get_monthly_cost(db, year=year, month=month, profile=profile)
     if not row:
         raise HTTPException(status_code=404, detail=f"No data for {_month_label(year, month)}")
@@ -68,6 +71,7 @@ def get_service_costs(
     min_cost: float = Query(0.01, ge=0),
     profile: str = Query("", description="AWS CLI profile name"),
     db: Session = Depends(get_db),
+    _user: User = Depends(get_current_user),
 ):
     mc, services = billing_service.get_service_costs(
         db, year=year, month=month, sort_by=sort_by, min_cost=min_cost, profile=profile
@@ -96,6 +100,6 @@ def get_service_costs(
 
 
 @router.get("/summary", response_model=SummaryResponse)
-def get_summary(profile: str = Query("", description="AWS CLI profile name"), db: Session = Depends(get_db)):
+def get_summary(profile: str = Query("", description="AWS CLI profile name"), db: Session = Depends(get_db), _user: User = Depends(get_current_user)):
     data = billing_service.get_summary(db, profile=profile)
     return SummaryResponse(**data)

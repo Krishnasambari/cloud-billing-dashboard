@@ -42,6 +42,34 @@ def _migrate_db() -> None:
         if "filter_name" not in note_cols:
             with engine.begin() as conn:
                 conn.execute(text("ALTER TABLE service_notes ADD COLUMN filter_name VARCHAR(20)"))
+        if "aws_profile" not in note_cols:
+            with engine.begin() as conn:
+                conn.execute(text("""
+                    CREATE TABLE service_notes_new (
+                        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                        year          INTEGER      NOT NULL,
+                        month         INTEGER      NOT NULL,
+                        service_name  VARCHAR(200) NOT NULL,
+                        note          TEXT         NOT NULL,
+                        note_date     VARCHAR(10)  NOT NULL,
+                        resource_id   VARCHAR(500),
+                        resource_name VARCHAR(500),
+                        filter_name   VARCHAR(20),
+                        aws_profile   VARCHAR(100) NOT NULL DEFAULT 'default',
+                        created_at    VARCHAR(30)  NOT NULL,
+                        UNIQUE (year, month, service_name, aws_profile)
+                    )
+                """))
+                conn.execute(text("""
+                    INSERT INTO service_notes_new
+                        (id, year, month, service_name, note, note_date,
+                         resource_id, resource_name, filter_name, aws_profile, created_at)
+                    SELECT id, year, month, service_name, note, note_date,
+                           resource_id, resource_name, filter_name, 'default', created_at
+                    FROM service_notes
+                """))
+                conn.execute(text("DROP TABLE service_notes"))
+                conn.execute(text("ALTER TABLE service_notes_new RENAME TO service_notes"))
 
     if "monthly_costs" not in inspector.get_table_names():
         return

@@ -4,8 +4,10 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.database import get_db, SessionLocal
-from app.schemas.sync import SyncTriggerRequest, SyncStatusResponse, SyncHistoryResponse
+from app.deps import get_current_user
+from app.models.user import User
 from app.models.sync_log import SyncLog
+from app.schemas.sync import SyncTriggerRequest, SyncStatusResponse, SyncHistoryResponse
 from app.services import billing_service
 from app.config import settings
 
@@ -60,6 +62,7 @@ def trigger_sync(
     body: SyncTriggerRequest,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
+    _user: User = Depends(get_current_user),
 ):
     from datetime import datetime, timezone
 
@@ -84,7 +87,7 @@ def trigger_sync(
 
 
 @router.get("/status", response_model=SyncStatusResponse)
-def sync_status(db: Session = Depends(get_db)):
+def sync_status(db: Session = Depends(get_db), _user: User = Depends(get_current_user)):
     log = db.query(SyncLog).order_by(SyncLog.id.desc()).first()
     if not log:
         raise HTTPException(status_code=404, detail="No sync has been run yet")
@@ -95,6 +98,7 @@ def sync_status(db: Session = Depends(get_db)):
 def sync_history(
     limit: int = Query(10, ge=1, le=100),
     db: Session = Depends(get_db),
+    _user: User = Depends(get_current_user),
 ):
     logs = db.query(SyncLog).order_by(SyncLog.id.desc()).limit(limit).all()
     items = [_log_to_response(l) for l in logs]

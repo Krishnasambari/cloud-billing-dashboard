@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
+from app.deps import get_current_user
+from app.models.user import User
 from app.services.aws_resources import fetch_resources, fetch_resource_stats
 
 router = APIRouter()
@@ -10,6 +12,7 @@ router = APIRouter()
 def get_resource_stats(
     region: str = Query(default="ap-south-1"),
     profile: str = Query(default=""),
+    _user: User = Depends(get_current_user),
 ):
     return fetch_resource_stats(profile=profile or None, region=region)
 
@@ -18,6 +21,7 @@ def get_resource_stats(
 def list_resources(
     service_name: str = Query(..., description="AWS service name from Cost Explorer"),
     profile: str = Query(default=""),
+    _user: User = Depends(get_current_user),
 ):
     resources = fetch_resources(service_name, profile=profile or None)
     return {
@@ -33,6 +37,7 @@ def get_service_detail(
     service_name: str = Query(..., description="AWS service name"),
     region: str = Query(default="ap-south-1"),
     profile: str = Query(default=""),
+    _user: User = Depends(get_current_user),
 ):
     from app.services.aws_resources import fetch_service_detail
     result = fetch_service_detail(service_name, profile=profile or None, region=region)

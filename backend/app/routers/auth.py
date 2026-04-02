@@ -1,16 +1,15 @@
-from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.deps import get_current_user
 from app.models.user import User
 from app.services.auth_service import (
-    authenticate_user, create_access_token, decode_token, get_cards_for_user
+    authenticate_user, create_access_token, get_cards_for_user
 )
 
 router = APIRouter()
-bearer = HTTPBearer(auto_error=False)
 
 
 class LoginRequest(BaseModel):
@@ -33,21 +32,6 @@ class LoginResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     user: UserOut
-
-
-def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(bearer),
-    db: Session = Depends(get_db),
-) -> User:
-    if not credentials:
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    payload = decode_token(credentials.credentials)
-    if not payload:
-        raise HTTPException(status_code=401, detail="Invalid or expired token")
-    user = db.query(User).filter_by(id=int(payload["sub"]), is_active=True).first()
-    if not user:
-        raise HTTPException(status_code=401, detail="User not found")
-    return user
 
 
 @router.post("/login", response_model=LoginResponse)
