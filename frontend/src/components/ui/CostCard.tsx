@@ -1,3 +1,5 @@
+import { type ReactNode } from 'react'
+
 const fmtINR = new Intl.NumberFormat('en-IN', {
   style: 'currency',
   currency: 'INR',
@@ -12,7 +14,7 @@ const fmtUSD = new Intl.NumberFormat('en-US', {
 })
 
 interface Props {
-  title: string
+  title: ReactNode
   amount: number
   exchangeRate: number
   subtitle?: string

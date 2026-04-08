@@ -1,9 +1,10 @@
 import client from './client'
-import type { SyncStatusResponse } from '../types/billing'
+import type { SyncStatusResponse, CloudAccount } from '../types/billing'
 
 export async function triggerSync(params: {
   months_back: number
-  aws_profile: string
+  cloud: string
+  cloud_account: string
 }): Promise<SyncStatusResponse> {
   const { data } = await client.post('/sync/trigger', params)
   return data
@@ -22,8 +23,12 @@ export async function fetchSyncHistory(limit = 10): Promise<{
   return data
 }
 
+export async function fetchAccounts(): Promise<{ accounts: CloudAccount[]; count: number }> {
+  const { data } = await client.get('/sync/accounts')
+  return data
+}
+
 export async function fetchProfiles(): Promise<{ configured: string[]; synced: string[] }> {
-  // /profiles is on the root app (not sync router) so it always works
-  const { data } = await client.get('/profiles')
+  const { data } = await client.get('/sync/profiles')
   return { configured: data.configured ?? [], synced: data.synced ?? [] }
 }

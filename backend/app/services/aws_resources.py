@@ -935,3 +935,245 @@ def fetch_service_detail(service_name: str, profile: str | None, region: str) ->
     if "cloudwatch" in key:
         return _cloudwatch_detail(profile, region)
     return {"columns": [], "rows": []}
+
+
+# ── S3 Storage Lens ───────────────────────────────────────────────────────────
+
+def _fmt_bytes(n: float | int | None) -> str:
+    if n is None:
+        return "—"
+    n = float(n)
+    for unit in ["B", "KB", "MB", "GB", "TB", "PB"]:
+        if n < 1024.0:
+            return f"{n:.1f} {unit}"
+        n /= 1024.0
+    return f"{n:.1f} PB"
+
+
+def fetch_s3_storage_lens(profile: str | None) -> dict:
+    """
+    Returns per-bucket storage from CloudWatch BucketSizeBytes alongside
+    Storage Lens CloudWatch metrics, then flags mismatches between the two.
+    """
+    import datetime
+
+    EMPTY: dict = {
+        "buckets": [],
+        "bucket_count": 0,
+        "storage_lens_configs": [],
+        "storage_lens_enabled": False,
+        "lens_cw_publishing": False,
+        "has_cw_data": False,
+        "has_lens_metrics": False,
+        "total_actual_bytes": 0,
+        "total_lens_bytes": 0,
+        "total_actual_size": "0 B",
+        "total_lens_size": "0 B",
+        "warnings_count": 0,
+    }
+
+    try:
+        session = boto3.Session(profile_name=profile or None)
+        s3 = session.client("s3")
+        # S3 CloudWatch metrics are always published to us-east-1
+        cw = session.client("cloudwatch", region_name="us-east-1")
+
+        # 1. List current buckets
+        try:
+            raw = s3.list_buckets().get("Buckets", [])
+        except Exception:
+            return EMPTY
+        if not raw:
+            return EMPTY
+
+        buckets = [
+            {
+                "name": b["Name"],
+                "created": str(b.get("CreationDate", ""))[:10],
+                "created_dt": b.get("CreationDate"),
+            }
+            for b in raw
+        ]
+        names = [b["name"] for b in buckets]
+
+        now = datetime.datetime.utcnow()
+        # Use a 30-day window — S3 BucketSizeBytes publishes once daily,
+        # so 3 days can miss a bucket if it had no objects today.
+        end = now
+        start = now - datetime.timedelta(days=30)
+
+        def _run_cw_batch(queries: list[dict]) -> dict[str, float]:
+            result: dict[str, float] = {}
+            for chunk in [queries[i:i + 500] for i in range(0, len(queries), 500)]:
+                try:
+                    resp = cw.get_metric_data(MetricDataQueries=chunk, StartTime=start, EndTime=end)
+                    for r in resp.get("MetricDataResults", []):
+                        if r.get("Values") and r["Label"] not in result:
+                            result[r["Label"]] = max(r["Values"])
+                except Exception:
+                    pass
+            return result
+
+        # 2. Batch-fetch BucketSizeBytes from CloudWatch (try AllStorageTypes, fall back to StandardStorage)
+        def _cw_size_queries(storage_type: str) -> list[dict]:
+            return [
+                {
+                    "Id": f"b{i}",
+                    "Label": name,
+                    "MetricStat": {
+                        "Metric": {
+                            "Namespace": "AWS/S3",
+                            "MetricName": "BucketSizeBytes",
+                            "Dimensions": [
+                                {"Name": "BucketName", "Value": name},
+                                {"Name": "StorageType", "Value": storage_type},
+                            ],
+                        },
+                        "Period": 86400,
+                        "Stat": "Average",
+                    },
+                    "ReturnData": True,
+                }
+                for i, name in enumerate(names)
+            ]
+
+        cw_storage = _run_cw_batch(_cw_size_queries("AllStorageTypes"))
+        # For any bucket that returned nothing with AllStorageTypes, retry with StandardStorage
+        missing = [n for n in names if n not in cw_storage]
+        if missing:
+            fallback = _run_cw_batch(_cw_size_queries("StandardStorage"))
+            cw_storage.update(fallback)
+
+        # 3. List Storage Lens configurations via s3control and check CW publishing
+        lens_configs: list[dict] = []
+        account_id: str | None = None
+        lens_cw_publishing = False
+        try:
+            sts = session.client("sts")
+            account_id = sts.get_caller_identity()["Account"]
+            s3control = session.client("s3control", region_name="us-east-1")
+            cfg_resp = s3control.list_storage_lens_configurations(AccountId=account_id)
+            for cfg_item in cfg_resp.get("StorageLensConfigurationList", []):
+                cfg_id = cfg_item.get("Id")
+                is_enabled = cfg_item.get("IsEnabled", False)
+                home_region = cfg_item.get("HomeRegion")
+                # Check if CloudWatch metrics publishing is enabled for this config
+                cw_enabled = False
+                try:
+                    full = s3control.get_storage_lens_configuration(
+                        AccountId=account_id, ConfigId=cfg_id
+                    )
+                    aws_org = full.get("StorageLensConfiguration", {})
+                    data_export = aws_org.get("DataExport", {})
+                    cw_enabled = "CloudWatchMetrics" in data_export and data_export["CloudWatchMetrics"].get("IsEnabled", False)
+                except Exception:
+                    pass
+                if cw_enabled:
+                    lens_cw_publishing = True
+                lens_configs.append({
+                    "id": cfg_id,
+                    "is_enabled": is_enabled,
+                    "home_region": home_region,
+                    "cw_publishing": cw_enabled,
+                })
+        except Exception:
+            pass
+
+        # 4. Batch-fetch Storage Lens StorageBytes from CloudWatch
+        # Required dimensions: configuration_id, aws_account_id, record_type, bucket_name, aws_region, storage_class
+        lens_storage: dict[str, float] = {}
+        if account_id:
+            active_configs = [c for c in lens_configs if c.get("is_enabled") and c.get("cw_publishing")]
+            # Also try the default dashboard in case it publishes without being in the list
+            config_ids_to_try = [c["id"] for c in active_configs] or (
+                ["default-account-dashboard"] if not lens_configs else []
+            )
+            for config_id in config_ids_to_try:
+                # Try each bucket without the aws_region dimension first (some configs omit it)
+                lens_queries: list[dict] = []
+                for i, name in enumerate(names):
+                    lens_queries.append({
+                        "Id": f"l{i}",
+                        "Label": name,
+                        "MetricStat": {
+                            "Metric": {
+                                "Namespace": "AWS/S3/Storage-Lens",
+                                "MetricName": "StorageBytes",
+                                "Dimensions": [
+                                    {"Name": "configuration_id", "Value": config_id},
+                                    {"Name": "aws_account_id", "Value": account_id},
+                                    {"Name": "record_type", "Value": "BUCKET"},
+                                    {"Name": "bucket_name", "Value": name},
+                                    {"Name": "storage_class", "Value": "STANDARD"},
+                                ],
+                            },
+                            "Period": 86400,
+                            "Stat": "Average",
+                        },
+                        "ReturnData": True,
+                    })
+                batch = _run_cw_batch(lens_queries)
+                for k, v in batch.items():
+                    if k not in lens_storage:
+                        lens_storage[k] = v
+
+        # 5. Build per-bucket rows with mismatch warnings
+        result_buckets = []
+        for bucket in buckets:
+            name = bucket["name"]
+            created_dt = bucket.get("created_dt")
+            actual = cw_storage.get(name)
+            lens = lens_storage.get(name)
+
+            # Detect brand-new buckets (< 48 h old) where metrics haven't published yet
+            is_new = False
+            if created_dt:
+                age = now - created_dt.replace(tzinfo=None)
+                is_new = age.total_seconds() < 48 * 3600
+
+            warning: str | None = None
+            if actual is not None and lens is not None:
+                bigger = max(actual, lens)
+                if bigger > 0:
+                    diff_pct = abs(actual - lens) / bigger * 100
+                    if diff_pct > 10:
+                        warning = (
+                            f"Mismatch: Storage Lens shows {_fmt_bytes(lens)} but "
+                            f"CloudWatch reports {_fmt_bytes(actual)} ({diff_pct:.1f}% diff)"
+                        )
+            elif actual is not None and lens is None and lens_cw_publishing:
+                warning = "Bucket not visible in Storage Lens metrics"
+
+            result_buckets.append({
+                "name": name,
+                "created": bucket["created"],
+                "actual_bytes": actual,
+                "lens_bytes": lens,
+                "actual_size": _fmt_bytes(actual),
+                "lens_size": _fmt_bytes(lens),
+                "warning": warning,
+                "is_new": is_new,
+            })
+
+        result_buckets.sort(key=lambda x: x.get("actual_bytes") or 0, reverse=True)
+
+        total_actual = sum(b.get("actual_bytes") or 0 for b in result_buckets)
+        total_lens = sum(b.get("lens_bytes") or 0 for b in result_buckets)
+
+        return {
+            "buckets": result_buckets,
+            "bucket_count": len(buckets),
+            "storage_lens_configs": lens_configs,
+            "storage_lens_enabled": any(c.get("is_enabled") for c in lens_configs),
+            "lens_cw_publishing": lens_cw_publishing,
+            "has_cw_data": len(cw_storage) > 0,
+            "has_lens_metrics": len(lens_storage) > 0,
+            "total_actual_bytes": total_actual,
+            "total_lens_bytes": total_lens,
+            "total_actual_size": _fmt_bytes(total_actual),
+            "total_lens_size": _fmt_bytes(total_lens),
+            "warnings_count": sum(1 for b in result_buckets if b.get("warning")),
+        }
+
+    except Exception:
+        return EMPTY

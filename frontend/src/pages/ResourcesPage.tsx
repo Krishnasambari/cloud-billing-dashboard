@@ -1,202 +1,9 @@
-// import { useState, useCallback } from 'react'
-// import { fetchServiceDetail, type ServiceDetailResponse } from '../api/resources'
-
-// const DEFAULT_REGION = 'ap-south-1'
-
-// const SERVICES = [
-//   { key: 'Amazon Elastic Compute Cloud - Compute', label: 'EC2',             icon: '🖥️',  desc: 'Virtual servers' },
-//   { key: 'Amazon Relational Database Service',     label: 'RDS',             icon: '🗄️',  desc: 'Managed databases' },
-//   { key: 'Amazon Simple Storage Service',          label: 'S3',              icon: '🪣',  desc: 'Object storage' },
-//   { key: 'AWS Lambda',                             label: 'Lambda',          icon: '⚡',  desc: 'Serverless functions' },
-//   { key: 'Amazon CloudFront',                      label: 'CloudFront',      icon: '🌐',  desc: 'CDN' },
-//   { key: 'Amazon Elastic Load Balancing',          label: 'Load Balancers',  icon: '⚖️',  desc: 'Traffic distribution' },
-//   { key: 'Amazon ElastiCache',                     label: 'ElastiCache',     icon: '🔴',  desc: 'In-memory cache' },
-//   { key: 'Amazon Simple Queue Service',            label: 'SQS',             icon: '📨',  desc: 'Message queues' },
-//   { key: 'Amazon Simple Notification Service',     label: 'SNS',             icon: '🔔',  desc: 'Pub/sub messaging' },
-//   { key: 'Amazon Route 53',                        label: 'Route 53',        icon: '🔀',  desc: 'DNS' },
-//   { key: 'AWS Key Management Service',             label: 'KMS',             icon: '🔑',  desc: 'Key management' },
-//   { key: 'AWS Secrets Manager',                    label: 'Secrets Manager', icon: '🔒',  desc: 'Secrets storage' },
-//   { key: 'AWS CodePipeline',                       label: 'CodePipeline',    icon: '🔄',  desc: 'CI/CD pipelines' },
-//   { key: 'AWS CodeCommit',                         label: 'CodeCommit',      icon: '📦',  desc: 'Git repositories' },
-//   { key: 'Amazon Kinesis Firehose',                label: 'Firehose',        icon: '🔥',  desc: 'Data streaming' },
-//   { key: 'AWS WAF',                                label: 'WAF',             icon: '🛡️',  desc: 'Web firewall' },
-//   { key: 'Amazon API Gateway',                     label: 'API Gateway',     icon: '🚪',  desc: 'API management' },
-//   { key: 'Amazon Virtual Private Cloud',           label: 'VPC / NAT',       icon: '🏗️',  desc: 'Network' },
-//   { key: 'Amazon CloudWatch',                      label: 'CloudWatch',      icon: '📊',  desc: 'Monitoring' },
-// ]
-
-// interface Props {
-//   profile: string
-// }
-
-// function StateChip({ value }: { value: string }) {
-//   const v = value.toLowerCase()
-//   const cls =
-//     v === 'running' || v === 'available' || v === 'active' || v === 'enabled' || v === 'ok'
-//       ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
-//       : v === 'stopped' || v === 'inactive' || v === 'disabled'
-//       ? 'bg-red-500/15 text-red-400 border-red-500/30'
-//       : v === 'pending' || v === 'provisioning'
-//       ? 'bg-yellow-500/15 text-yellow-400 border-yellow-500/30'
-//       : 'bg-slate-700/40 text-slate-400 border-slate-600/30'
-//   return (
-//     <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium border ${cls}`}>
-//       {value}
-//     </span>
-//   )
-// }
-
-// const STATE_COLS = new Set(['state', 'status', 'multi-az'])
-
-// export default function ResourcesPage({ profile }: Props) {
-//   const [selected, setSelected] = useState<typeof SERVICES[0] | null>(null)
-//   const [detail, setDetail]     = useState<ServiceDetailResponse | null>(null)
-//   const [loading, setLoading]   = useState(false)
-//   const [error, setError]       = useState<string | null>(null)
-
-//   const loadDetail = useCallback(async (svc: typeof SERVICES[0]) => {
-//     setSelected(svc)
-//     setDetail(null)
-//     setError(null)
-//     setLoading(true)
-//     try {
-//       const data = await fetchServiceDetail(svc.key, DEFAULT_REGION, profile || undefined)
-//       setDetail(data)
-//     } catch (e: unknown) {
-//       setError(e instanceof Error ? e.message : 'Failed to load resources')
-//     } finally {
-//       setLoading(false)
-//     }
-//   }, [profile])
-
-//   return (
-//     <div className="max-w-7xl mx-auto px-6 py-6 space-y-6">
-
-//       {/* Header */}
-//       <div>
-//         <h1 className="text-base font-semibold text-white">AWS Infrastructure</h1>
-//         <p className="text-xs text-slate-500 mt-0.5">Select a service to explore its resources</p>
-//       </div>
-
-//       {/* Service tiles */}
-//       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
-//         {SERVICES.map((svc) => {
-//           const isActive = selected?.key === svc.key
-//           return (
-//             <button
-//               key={svc.key}
-//               onClick={() => loadDetail(svc)}
-//               className={`rounded-xl border p-3 text-left transition-all ${
-//                 isActive
-//                   ? 'border-blue-500/60 bg-blue-600/10 ring-1 ring-blue-500/30'
-//                   : 'border-slate-800 bg-slate-900/60 hover:border-slate-600 hover:bg-slate-800/60'
-//               }`}
-//             >
-//               <div className="text-xl mb-1.5">{svc.icon}</div>
-//               <div className="text-xs font-semibold text-slate-200 leading-tight">{svc.label}</div>
-//               <div className="text-[10px] text-slate-500 mt-0.5 leading-tight">{svc.desc}</div>
-//             </button>
-//           )
-//         })}
-//       </div>
-
-//       {/* Detail panel */}
-//       {selected && (
-//         <div className="rounded-2xl border border-slate-800 bg-slate-900/50 overflow-hidden">
-
-//           {/* Panel header */}
-//           <div className="px-5 py-4 border-b border-slate-800/60 flex items-center justify-between">
-//             <div className="flex items-center gap-2.5">
-//               <span className="text-lg">{selected.icon}</span>
-//               <div>
-//                 <h2 className="text-sm font-semibold text-white">{selected.label}</h2>
-//                 <p className="text-[10px] text-slate-500 mt-0.5">{selected.key}</p>
-//               </div>
-//             </div>
-//             {detail && (
-//               <span className="text-xs text-slate-500">
-//                 {detail.count} resource{detail.count !== 1 ? 's' : ''}
-//               </span>
-//             )}
-//           </div>
-
-//           {/* Loading */}
-//           {loading && (
-//             <div className="flex items-center justify-center gap-2 text-slate-500 text-xs py-16">
-//               <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
-//                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-//                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
-//               </svg>
-//               Loading resources…
-//             </div>
-//           )}
-
-//           {/* Error */}
-//           {!loading && error && (
-//             <div className="m-5 rounded-lg border border-red-500/30 bg-red-900/20 px-4 py-3 text-sm text-red-300 flex items-center gap-2">
-//               <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-//                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126z" />
-//               </svg>
-//               {error}
-//             </div>
-//           )}
-
-//           {/* Empty */}
-//           {!loading && !error && detail && detail.count === 0 && (
-//             <div className="flex flex-col items-center justify-center py-16 gap-2 text-slate-600">
-//               <svg className="w-8 h-8 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-//                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
-//               </svg>
-//               <p className="text-sm">No resources found in this region</p>
-//             </div>
-//           )}
-
-//           {/* Table */}
-//           {!loading && !error && detail && detail.count > 0 && (
-//             <div className="overflow-x-auto">
-//               <table className="w-full text-xs">
-//                 <thead>
-//                   <tr className="text-[10px] text-slate-500 uppercase tracking-wider border-b border-slate-800 bg-slate-900/40">
-//                     {detail.columns.map((col) => (
-//                       <th key={col} className="px-4 py-3 text-left font-semibold whitespace-nowrap">{col}</th>
-//                     ))}
-//                   </tr>
-//                 </thead>
-//                 <tbody>
-//                   {detail.rows.map((row, i) => (
-//                     <tr key={i} className={`border-b border-slate-800/40 ${i % 2 !== 0 ? 'bg-slate-800/20' : ''}`}>
-//                       {detail.columns.map((col) => {
-//                         const val = row[col] ?? '—'
-//                         const isState = STATE_COLS.has(col.toLowerCase())
-//                         return (
-//                           <td key={col} className="px-4 py-2.5 text-slate-300 whitespace-nowrap">
-//                             {isState && val !== '—'
-//                               ? <StateChip value={val} />
-//                               : val
-//                             }
-//                           </td>
-//                         )
-//                       })}
-//                     </tr>
-//                   ))}
-//                 </tbody>
-//               </table>
-//             </div>
-//           )}
-//         </div>
-//       )}
-//     </div>
-//   )
-// }
-
-
-
 import { useState, useCallback } from 'react'
-import { fetchServiceDetail, type ServiceDetailResponse } from '../api/resources'
+import { fetchServiceDetail, fetchS3StorageLens, type ServiceDetailResponse, type S3StorageLensResponse } from '../api/resources'
 
 const DEFAULT_REGION = 'ap-south-1'
 
-const SERVICES = [
+const AWS_SERVICES = [
   { key: 'Amazon Elastic Compute Cloud - Compute', label: 'EC2',             icon: '🖥️',  desc: 'Virtual servers', color: 'from-orange-500 to-red-500' },
   { key: 'Amazon Relational Database Service',     label: 'RDS',             icon: '🗄️',  desc: 'Managed databases', color: 'from-blue-500 to-cyan-500' },
   { key: 'Amazon Simple Storage Service',          label: 'S3',              icon: '🪣',  desc: 'Object storage', color: 'from-green-500 to-emerald-500' },
@@ -218,8 +25,26 @@ const SERVICES = [
   { key: 'Amazon CloudWatch',                      label: 'CloudWatch',      icon: '📊',  desc: 'Monitoring', color: 'from-yellow-500 to-orange-500' },
 ]
 
+const AZURE_SERVICES = [
+  { key: 'Virtual Machines',          label: 'Virtual Machines',  icon: '🖥️',  desc: 'Azure VMs', color: 'from-blue-500 to-cyan-500' },
+  { key: 'Storage',                   label: 'Storage',           icon: '🗂️',  desc: 'Storage accounts', color: 'from-green-500 to-teal-500' },
+  { key: 'SQL Databases',             label: 'SQL Databases',     icon: '🗄️',  desc: 'Managed SQL', color: 'from-indigo-500 to-blue-500' },
+  { key: 'App Service',               label: 'App Service',       icon: '🌐',  desc: 'Web apps', color: 'from-cyan-500 to-blue-500' },
+  { key: 'Azure Kubernetes Service',  label: 'AKS',               icon: '⚙️',  desc: 'Kubernetes', color: 'from-purple-500 to-indigo-500' },
+  { key: 'Functions',                 label: 'Functions',         icon: '⚡',  desc: 'Serverless', color: 'from-yellow-500 to-orange-500' },
+  { key: 'Azure Cache for Redis',     label: 'Redis Cache',       icon: '🔴',  desc: 'In-memory cache', color: 'from-red-500 to-orange-500' },
+  { key: 'Service Bus',               label: 'Service Bus',       icon: '📨',  desc: 'Messaging', color: 'from-teal-500 to-cyan-500' },
+  { key: 'Azure Cosmos DB',           label: 'Cosmos DB',         icon: '🌍',  desc: 'NoSQL database', color: 'from-blue-500 to-purple-500' },
+  { key: 'Azure API Management',      label: 'API Management',    icon: '🚪',  desc: 'API gateway', color: 'from-green-500 to-emerald-500' },
+  { key: 'Load Balancer',             label: 'Load Balancer',     icon: '⚖️',  desc: 'Traffic distribution', color: 'from-slate-500 to-blue-500' },
+  { key: 'Virtual Network',           label: 'Virtual Network',   icon: '🏗️',  desc: 'Networking', color: 'from-slate-500 to-gray-500' },
+  { key: 'Azure Monitor',             label: 'Azure Monitor',     icon: '📊',  desc: 'Monitoring', color: 'from-orange-500 to-amber-500' },
+  { key: 'Key Vault',                 label: 'Key Vault',         icon: '🔑',  desc: 'Secrets management', color: 'from-purple-500 to-pink-500' },
+]
+
 interface Props {
-  profile: string
+  cloud: string
+  cloudAccount: string
 }
 
 function StateChip({ value }: { value: string }) {
@@ -248,26 +73,49 @@ function StateChip({ value }: { value: string }) {
 
 const STATE_COLS = new Set(['state', 'status', 'multi-az'])
 
-export default function ResourcesPage({ profile }: Props) {
-  const [selected, setSelected] = useState<typeof SERVICES[0] | null>(null)
+export default function ResourcesPage({ cloud, cloudAccount }: Props) {
+  const SERVICES = cloud === 'azure' ? AZURE_SERVICES : AWS_SERVICES
+  type ServiceItem = typeof SERVICES[0]
+
+  const [selected, setSelected] = useState<ServiceItem | null>(null)
   const [detail, setDetail]     = useState<ServiceDetailResponse | null>(null)
   const [loading, setLoading]   = useState(false)
   const [error, setError]       = useState<string | null>(null)
 
-  const loadDetail = useCallback(async (svc: typeof SERVICES[0]) => {
+  const [lensData, setLensData]       = useState<S3StorageLensResponse | null>(null)
+  const [lensLoading, setLensLoading] = useState(false)
+  const [lensError, setLensError]     = useState<string | null>(null)
+
+  const IS3_KEY = 'Amazon Simple Storage Service'
+
+  const loadDetail = useCallback(async (svc: ServiceItem) => {
     setSelected(svc)
     setDetail(null)
     setError(null)
     setLoading(true)
+    setLensData(null)
+    setLensError(null)
     try {
-      const data = await fetchServiceDetail(svc.key, DEFAULT_REGION, profile || undefined)
+      const data = await fetchServiceDetail(svc.key, DEFAULT_REGION, cloud, cloudAccount)
       setDetail(data)
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed to load resources')
     } finally {
       setLoading(false)
     }
-  }, [profile])
+
+    if (cloud === 'aws' && svc.key === IS3_KEY) {
+      setLensLoading(true)
+      try {
+        const lens = await fetchS3StorageLens(cloudAccount || undefined)
+        setLensData(lens)
+      } catch (e: unknown) {
+        setLensError(e instanceof Error ? e.message : 'Failed to load Storage Lens data')
+      } finally {
+        setLensLoading(false)
+      }
+    }
+  }, [cloud, cloudAccount])
 
   return (
     <>
@@ -547,7 +395,191 @@ export default function ResourcesPage({ profile }: Props) {
                 </table>
               </div>
             )}
-          </div>
+          {/* S3 Storage Lens Panel */}
+          {selected?.key === IS3_KEY && (
+            <div className="border-t border-emerald-100 mt-1">
+              {/* Lens Header */}
+              <div className="detail-header px-6 py-4 flex items-center justify-between flex-wrap gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center">
+                    <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-gray-900">S3 Storage Lens</h3>
+                    <p className="text-xs text-gray-500 mt-0.5">Compare CloudWatch actual usage vs Storage Lens metrics</p>
+                  </div>
+                </div>
+
+                {lensData && !lensLoading && (
+                  <div className="flex items-center gap-3 flex-wrap">
+                    {/* Storage Lens status badge */}
+                    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border ${
+                      lensData.storage_lens_enabled
+                        ? 'bg-emerald-500/10 text-emerald-700 border-emerald-200'
+                        : 'bg-gray-100 text-gray-500 border-gray-200'
+                    }`}>
+                      <span className="text-[8px]">{lensData.storage_lens_enabled ? '●' : '○'}</span>
+                      Storage Lens {lensData.storage_lens_enabled ? 'Enabled' : 'Disabled'}
+                    </span>
+                    {/* Warning count badge */}
+                    {lensData.warnings_count > 0 && (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-700 border border-amber-200">
+                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126z" />
+                        </svg>
+                        {lensData.warnings_count} Mismatch{lensData.warnings_count !== 1 ? 'es' : ''}
+                      </span>
+                    )}
+                    {/* Totals */}
+                    <div className="flex gap-4 text-xs">
+                      {lensData.has_cw_data && (
+                        <div className="text-center">
+                          <div className="text-gray-400 uppercase tracking-wider text-[10px]">CloudWatch Total</div>
+                          <div className="font-bold text-gray-800">{lensData.total_actual_size}</div>
+                        </div>
+                      )}
+                      {lensData.has_lens_metrics && (
+                        <div className="text-center">
+                          <div className="text-gray-400 uppercase tracking-wider text-[10px]">Storage Lens Total</div>
+                          <div className="font-bold text-indigo-600">{lensData.total_lens_size}</div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Lens Body */}
+              {lensLoading && (
+                <div className="flex flex-col items-center justify-center gap-3 py-12">
+                  <div className="loading-spinner" />
+                  <p className="text-sm text-gray-500">Loading Storage Lens data...</p>
+                </div>
+              )}
+
+              {!lensLoading && lensError && (
+                <div className="m-6 rounded-xl border border-red-500/30 bg-red-500/10 px-5 py-4">
+                  <div className="flex items-center gap-3">
+                    <svg className="w-5 h-5 text-red-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126z" />
+                    </svg>
+                    <div>
+                      <p className="text-sm font-medium text-red-400">Failed to load Storage Lens</p>
+                      <p className="text-xs text-red-300/80 mt-0.5">{lensError}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {!lensLoading && !lensError && lensData && (
+                <>
+                  {/* Contextual notices */}
+                  {!lensData.has_cw_data && (
+                    <div className="mx-6 mt-4 mb-1 rounded-xl border border-amber-200 bg-amber-50 px-5 py-3 flex items-start gap-3">
+                      <svg className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <p className="text-xs text-amber-700">
+                        <span className="font-semibold">CloudWatch size not available.</span>{' '}
+                        S3 BucketSizeBytes metrics publish once daily — new buckets or empty buckets may not appear for up to 48 hours.
+                      </p>
+                    </div>
+                  )}
+                  {!lensData.has_lens_metrics && lensData.storage_lens_enabled && !lensData.lens_cw_publishing && (
+                    <div className="mx-6 mt-2 mb-1 rounded-xl border border-blue-200 bg-blue-50 px-5 py-3 flex items-start gap-3">
+                      <svg className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <p className="text-xs text-blue-700">
+                        <span className="font-semibold">Storage Lens CloudWatch publishing is off.</span>{' '}
+                        Enable "Publish CloudWatch metrics" in your Storage Lens configuration to see per-bucket lens data and mismatch warnings here.
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Storage Lens configs info */}
+                  {lensData.storage_lens_configs.length > 0 && (
+                    <div className="px-6 pt-3 pb-2 flex flex-wrap gap-2">
+                      {lensData.storage_lens_configs.map((cfg) => (
+                        <span key={cfg.id} className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs border ${
+                          cfg.is_enabled
+                            ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                            : 'bg-gray-100 border-gray-200 text-gray-500'
+                        }`}>
+                          <span className="font-mono">{cfg.id}</span>
+                          {cfg.home_region && <span className="opacity-60">· {cfg.home_region}</span>}
+                          <span className={`text-[10px] ${cfg.is_enabled ? 'text-emerald-500' : 'text-gray-400'}`}>
+                            {cfg.is_enabled ? '● active' : '○ inactive'}
+                          </span>
+                          {cfg.cw_publishing && (
+                            <span className="text-[10px] text-blue-500">· CW ✓</span>
+                          )}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Per-bucket table */}
+                  <div className="overflow-x-auto premium-scrollbar px-6 pb-6 pt-2">
+                    <table className="resource-table">
+                      <thead>
+                        <tr className="text-[11px] text-emerald-700 uppercase tracking-wider border-b border-emerald-200">
+                          <th className="px-4 py-3 text-left font-semibold">Bucket</th>
+                          <th className="px-4 py-3 text-left font-semibold">Created</th>
+                          <th className="px-4 py-3 text-right font-semibold">CloudWatch Size</th>
+                          <th className="px-4 py-3 text-right font-semibold">Storage Lens</th>
+                          <th className="px-4 py-3 text-left font-semibold">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {lensData.buckets.map((b, i) => (
+                          <tr key={b.name} className={`border-b border-emerald-100 transition-colors ${i % 2 !== 0 ? 'bg-gray-50/60' : ''} ${b.warning ? 'hover:bg-amber-50' : 'hover:bg-emerald-50'}`}>
+                            <td className="px-4 py-3 font-medium text-gray-800 text-sm">{b.name}</td>
+                            <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">{b.created || '—'}</td>
+                            <td className="px-4 py-3 text-right font-mono text-sm font-semibold text-gray-700">
+                              {b.actual_size !== '—' ? b.actual_size : <span className="text-gray-300 font-normal">—</span>}
+                            </td>
+                            <td className="px-4 py-3 text-right font-mono text-sm font-semibold text-indigo-600">
+                              {b.lens_size !== '—' ? b.lens_size : <span className="text-gray-300 font-normal">—</span>}
+                            </td>
+                            <td className="px-4 py-3">
+                              {b.warning ? (
+                                <div className="flex items-start gap-1.5">
+                                  <svg className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126z" />
+                                  </svg>
+                                  <span className="text-xs text-amber-700 leading-tight">{b.warning}</span>
+                                </div>
+                              ) : b.is_new ? (
+                                <span className="inline-flex items-center gap-1 text-xs text-blue-500 font-medium">
+                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                  </svg>
+                                  New — metrics pending
+                                </span>
+                              ) : (b.actual_size !== '—' || b.lens_size !== '—') ? (
+                                <span className="inline-flex items-center gap-1 text-xs text-emerald-600 font-medium">
+                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                  </svg>
+                                  Match
+                                </span>
+                              ) : (
+                                <span className="text-xs text-gray-400">No data</span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+        </div>
         )}
 
         {/* Welcome State */}

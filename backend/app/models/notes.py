@@ -16,9 +16,15 @@ class ServiceNote(Base):
     resource_id: Mapped[str | None] = mapped_column(String(500), nullable=True)
     resource_name: Mapped[str | None] = mapped_column(String(500), nullable=True)
     filter_name: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    cloud: Mapped[str] = mapped_column(String(20), nullable=False, default="aws")
+    cloud_account: Mapped[str] = mapped_column(String(200), nullable=False, default="default")
+    # aws_profile kept for migration compatibility
     aws_profile: Mapped[str] = mapped_column(String(100), nullable=False, default="default")
     created_at: Mapped[str] = mapped_column(String(30), nullable=False)
 
     __table_args__ = (
-        UniqueConstraint("year", "month", "service_name", "aws_profile", name="uq_note_year_month_service_profile"),
+        UniqueConstraint(
+            "year", "month", "service_name", "cloud", "cloud_account",
+            name="uq_note_year_month_service_cloud_account",
+        ),
     )

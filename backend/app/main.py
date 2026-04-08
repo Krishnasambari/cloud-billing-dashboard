@@ -12,9 +12,9 @@ import app.models.notes     # noqa: F401
 import app.models.user      # noqa: F401
 
 app = FastAPI(
-    title="AWS Billing Dashboard",
-    version="1.0.0",
-    description="API for syncing and visualizing AWS Cost Explorer data",
+    title="Cloud Billing Dashboard",
+    version="2.0.0",
+    description="API for syncing and visualizing multi-cloud cost data",
 )
 
 app.add_middleware(
@@ -37,11 +37,14 @@ def _migrate_db() -> None:
     """Run incremental SQLite migrations that create_all can't handle."""
     from sqlalchemy import inspect, text
     inspector = inspect(engine)
+
+    # ── Phase 1: add aws_profile to service_notes (legacy) ───────────────────
     if "service_notes" in inspector.get_table_names():
         note_cols = [c["name"] for c in inspector.get_columns("service_notes")]
         if "filter_name" not in note_cols:
             with engine.begin() as conn:
                 conn.execute(text("ALTER TABLE service_notes ADD COLUMN filter_name VARCHAR(20)"))
+            note_cols = [c["name"] for c in inspector.get_columns("service_notes")]
         if "aws_profile" not in note_cols:
             with engine.begin() as conn:
                 conn.execute(text("""
@@ -70,7 +73,9 @@ def _migrate_db() -> None:
                 """))
                 conn.execute(text("DROP TABLE service_notes"))
                 conn.execute(text("ALTER TABLE service_notes_new RENAME TO service_notes"))
+            note_cols = [c["name"] for c in inspector.get_columns("service_notes")]
 
+    # ── Phase 2: add aws_profile to monthly_costs (legacy) ───────────────────
     if "monthly_costs" not in inspector.get_table_names():
         return
     cols = [c["name"] for c in inspector.get_columns("monthly_costs")]
@@ -98,6 +103,85 @@ def _migrate_db() -> None:
             """))
             conn.execute(text("DROP TABLE monthly_costs"))
             conn.execute(text("ALTER TABLE monthly_costs_new RENAME TO monthly_costs"))
+        cols = [c["name"] for c in inspector.get_columns("monthly_costs")]
+
+    # ── Phase 3: add cloud + cloud_account to monthly_costs ──────────────────
+    cols = [c["name"] for c in inspector.get_columns("monthly_costs")]
+    if "cloud" not in cols:
+        with engine.begin() as conn:
+            conn.execute(text("""
+                CREATE TABLE monthly_costs_new (
+                    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                    year          INTEGER      NOT NULL,
+                    month         INTEGER      NOT NULL,
+                    cloud         VARCHAR(20)  NOT NULL DEFAULT 'aws',
+                    cloud_account VARCHAR(200) NOT NULL DEFAULT 'default',
+                    aws_profile   VARCHAR(100) NOT NULL DEFAULT 'default',
+                    period_start  VARCHAR(10)  NOT NULL,
+                    period_end    VARCHAR(10)  NOT NULL,
+                    total_cost    FLOAT        NOT NULL,
+                    unit          VARCHAR(10)  NOT NULL DEFAULT 'USD',
+                    synced_at     VARCHAR(30)  NOT NULL,
+                    UNIQUE (year, month, cloud, cloud_account)
+                )
+            """))
+            conn.execute(text("""
+                INSERT INTO monthly_costs_new
+                    (id, year, month, cloud, cloud_account, aws_profile,
+                     period_start, period_end, total_cost, unit, synced_at)
+                SELECT id, year, month, 'aws', aws_profile, aws_profile,
+                       period_start, period_end, total_cost, unit, synced_at
+                FROM monthly_costs
+            """))
+            conn.execute(text("DROP TABLE monthly_costs"))
+            conn.execute(text("ALTER TABLE monthly_costs_new RENAME TO monthly_costs"))
+
+    # ── Phase 4: add cloud + cloud_account to service_notes ──────────────────
+    if "service_notes" in inspector.get_table_names():
+        note_cols = [c["name"] for c in inspector.get_columns("service_notes")]
+        if "cloud" not in note_cols:
+            with engine.begin() as conn:
+                conn.execute(text("""
+                    CREATE TABLE service_notes_new (
+                        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                        year          INTEGER      NOT NULL,
+                        month         INTEGER      NOT NULL,
+                        service_name  VARCHAR(200) NOT NULL,
+                        note          TEXT         NOT NULL,
+                        note_date     VARCHAR(10)  NOT NULL,
+                        resource_id   VARCHAR(500),
+                        resource_name VARCHAR(500),
+                        filter_name   VARCHAR(20),
+                        aws_profile   VARCHAR(100) NOT NULL DEFAULT 'default',
+                        cloud         VARCHAR(20)  NOT NULL DEFAULT 'aws',
+                        cloud_account VARCHAR(200) NOT NULL DEFAULT 'default',
+                        created_at    VARCHAR(30)  NOT NULL,
+                        UNIQUE (year, month, service_name, cloud, cloud_account)
+                    )
+                """))
+                conn.execute(text("""
+                    INSERT INTO service_notes_new
+                        (id, year, month, service_name, note, note_date,
+                         resource_id, resource_name, filter_name, aws_profile,
+                         cloud, cloud_account, created_at)
+                    SELECT id, year, month, service_name, note, note_date,
+                           resource_id, resource_name, filter_name, aws_profile,
+                           'aws', aws_profile, created_at
+                    FROM service_notes
+                """))
+                conn.execute(text("DROP TABLE service_notes"))
+                conn.execute(text("ALTER TABLE service_notes_new RENAME TO service_notes"))
+
+    # ── Phase 5: add cloud + cloud_account to sync_logs ──────────────────────
+    if "sync_logs" in inspector.get_table_names():
+        log_cols = [c["name"] for c in inspector.get_columns("sync_logs")]
+        if "cloud" not in log_cols:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE sync_logs ADD COLUMN cloud VARCHAR(20) NOT NULL DEFAULT 'aws'"))
+                conn.execute(text("ALTER TABLE sync_logs ADD COLUMN cloud_account VARCHAR(200) NOT NULL DEFAULT 'default'"))
+                # backfill from aws_profile if it exists
+                if "aws_profile" in log_cols:
+                    conn.execute(text("UPDATE sync_logs SET cloud_account = COALESCE(aws_profile, 'default')"))
 
 
 @app.on_event("startup")
@@ -119,39 +203,7 @@ def health():
 
 @app.get("/api/profiles", tags=["health"])
 def list_aws_profiles():
-    """List configured AWS CLI profiles — public, no auth required."""
-    import subprocess
-    import configparser
-    import os
-
-    # Try AWS CLI first
-    try:
-        result = subprocess.run(
-            ["aws", "configure", "list-profiles"],
-            capture_output=True, text=True, timeout=5
-        )
-        if result.returncode == 0:
-            profiles = [p.strip() for p in result.stdout.splitlines() if p.strip()]
-            if profiles:
-                return {"configured": sorted(profiles)}
-    except Exception:
-        pass
-
-    # Fallback: parse config files
-    profiles: set[str] = set()
-    aws_dir = os.path.join(os.path.expanduser("~"), ".aws")
-    for filename, has_prefix in [("config", True), ("credentials", False)]:
-        path = os.path.join(aws_dir, filename)
-        if not os.path.exists(path):
-            continue
-        try:
-            cfg = configparser.ConfigParser()
-            cfg.read(path, encoding="utf-8-sig")
-            for section in cfg.sections():
-                name = section[8:].strip() if (has_prefix and section.startswith("profile ")) else section
-                if name:
-                    profiles.add(name)
-        except Exception:
-            pass
-
-    return {"configured": sorted(profiles)}
+    """Legacy endpoint — list configured AWS CLI profiles, public no auth required."""
+    from app.services.billing_service import list_configured_profiles
+    profiles = list_configured_profiles()
+    return {"configured": profiles}

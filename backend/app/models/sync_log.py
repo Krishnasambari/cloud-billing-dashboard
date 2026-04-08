@@ -10,8 +10,11 @@ class SyncLog(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     started_at: Mapped[str] = mapped_column(String(30), nullable=False)
     finished_at: Mapped[str | None] = mapped_column(String(30), nullable=True)
-    status: Mapped[str] = mapped_column(String(20), nullable=False)  # running/success/error
+    status: Mapped[str] = mapped_column(String(20), nullable=False)   # running/success/error
     months_synced: Mapped[int] = mapped_column(Integer, default=0)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    cloud: Mapped[str] = mapped_column(String(20), nullable=False, default="aws")
+    cloud_account: Mapped[str] = mapped_column(String(200), nullable=False, default="default")
+    # AWS-specific fields kept for backward compat
     aws_profile: Mapped[str | None] = mapped_column(String(100), nullable=True)
     aws_region: Mapped[str | None] = mapped_column(String(50), nullable=True)

@@ -21,7 +21,6 @@ def _now_iso() -> str:
 @router.post("", response_model=NoteItem, status_code=200)
 def upsert_note(body: NoteUpsertRequest, db: Session = Depends(get_db), _user: User = Depends(get_current_user)):
     now = _now_iso()
-    profile = body.aws_profile or "default"
     stmt = sqlite_insert(ServiceNote).values(
         year=body.year,
         month=body.month,
@@ -31,11 +30,13 @@ def upsert_note(body: NoteUpsertRequest, db: Session = Depends(get_db), _user: U
         resource_id=body.resource_id,
         resource_name=body.resource_name,
         filter_name=body.filter_name,
-        aws_profile=profile,
+        aws_profile=body.cloud_account,
+        cloud=body.cloud,
+        cloud_account=body.cloud_account,
         created_at=now,
     )
     stmt = stmt.on_conflict_do_update(
-        index_elements=["year", "month", "service_name", "aws_profile"],
+        index_elements=["year", "month", "service_name", "cloud", "cloud_account"],
         set_={
             "note": body.note,
             "note_date": body.note_date,
@@ -48,7 +49,8 @@ def upsert_note(body: NoteUpsertRequest, db: Session = Depends(get_db), _user: U
     db.execute(stmt)
     db.commit()
     row = db.query(ServiceNote).filter_by(
-        year=body.year, month=body.month, service_name=body.service_name, aws_profile=profile
+        year=body.year, month=body.month, service_name=body.service_name,
+        cloud=body.cloud, cloud_account=body.cloud_account,
     ).first()
     return row
 
@@ -57,21 +59,24 @@ def upsert_note(body: NoteUpsertRequest, db: Session = Depends(get_db), _user: U
 def get_notes_range(
     from_date: str | None = None,
     to_date: str | None = None,
-    profile: str = Query(default="default"),
+    cloud: str = Query(default="aws"),
+    cloud_account: str = Query(default=""),
+    profile: str = Query(default="", description="Deprecated: use cloud_account"),
     db: Session = Depends(get_db),
     _user: User = Depends(get_current_user),
 ):
-    """Fetch notes filtered by note_date range and profile. Defaults to current month if no params."""
     from datetime import date
     today = date.today()
     fd = from_date or today.replace(day=1).isoformat()
     td = to_date or today.isoformat()
+    effective_account = cloud_account or profile or "default"
     rows = (
         db.query(ServiceNote)
         .filter(
             ServiceNote.note_date >= fd,
             ServiceNote.note_date <= td,
-            ServiceNote.aws_profile == (profile or "default"),
+            ServiceNote.cloud == cloud,
+            ServiceNote.cloud_account == effective_account,
         )
         .order_by(ServiceNote.note_date, ServiceNote.service_name)
         .all()
@@ -83,13 +88,16 @@ def get_notes_range(
 def get_notes(
     year: int,
     month: int,
-    profile: str = Query(default="default"),
+    cloud: str = Query(default="aws"),
+    cloud_account: str = Query(default=""),
+    profile: str = Query(default="", description="Deprecated: use cloud_account"),
     db: Session = Depends(get_db),
     _user: User = Depends(get_current_user),
 ):
+    effective_account = cloud_account or profile or "default"
     rows = (
         db.query(ServiceNote)
-        .filter_by(year=year, month=month, aws_profile=profile or "default")
+        .filter_by(year=year, month=month, cloud=cloud, cloud_account=effective_account)
         .order_by(ServiceNote.service_name)
         .all()
     )

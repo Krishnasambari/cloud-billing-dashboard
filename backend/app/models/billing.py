@@ -11,6 +11,10 @@ class MonthlyCost(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     year: Mapped[int] = mapped_column(Integer, nullable=False)
     month: Mapped[int] = mapped_column(Integer, nullable=False)
+    # cloud + cloud_account are the canonical identity fields
+    cloud: Mapped[str] = mapped_column(String(20), nullable=False, default="aws")
+    cloud_account: Mapped[str] = mapped_column(String(200), nullable=False, default="default")
+    # aws_profile kept for migration compatibility — equals cloud_account for AWS rows
     aws_profile: Mapped[str] = mapped_column(String(100), nullable=False, default="default")
     period_start: Mapped[str] = mapped_column(String(10), nullable=False)
     period_end: Mapped[str] = mapped_column(String(10), nullable=False)
@@ -22,7 +26,9 @@ class MonthlyCost(Base):
         "ServiceCost", back_populates="monthly_cost", cascade="all, delete-orphan"
     )
 
-    __table_args__ = (UniqueConstraint("year", "month", "aws_profile", name="uq_monthly_year_month_profile"),)
+    __table_args__ = (
+        UniqueConstraint("year", "month", "cloud", "cloud_account", name="uq_monthly_year_month_cloud_account"),
+    )
 
 
 class ServiceCost(Base):
@@ -43,8 +49,6 @@ class ServiceCost(Base):
     )
 
     __table_args__ = (
-        UniqueConstraint(
-            "monthly_cost_id", "service_name", name="uq_service_monthly_name"
-        ),
+        UniqueConstraint("monthly_cost_id", "service_name", name="uq_service_monthly_name"),
         Index("ix_service_costs_monthly_cost_id", "monthly_cost_id"),
     )

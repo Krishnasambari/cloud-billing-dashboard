@@ -2,7 +2,12 @@ import { useState, useEffect } from 'react'
 import { fetchServiceCosts } from '../api/costs'
 import type { ServiceBreakdownResponse } from '../types/billing'
 
-export function useServiceCosts(year: number | null, month: number | null, profile: string = 'default') {
+export function useServiceCosts(
+  year: number | null,
+  month: number | null,
+  cloud = 'aws',
+  cloudAccount = '',
+) {
   const [data, setData] = useState<ServiceBreakdownResponse | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -18,7 +23,7 @@ export function useServiceCosts(year: number | null, month: number | null, profi
     setIsLoading(true)
     setError(null)
 
-    fetchServiceCosts(year, month, { profile })
+    fetchServiceCosts(year, month, { cloud, cloud_account: cloudAccount })
       .then((res) => {
         if (!cancelled) setData(res)
       })
@@ -33,7 +38,7 @@ export function useServiceCosts(year: number | null, month: number | null, profi
     return () => {
       cancelled = true
     }
-  }, [year, month, profile])
+  }, [year, month, cloud, cloudAccount])
 
   return { data, isLoading, error }
 }

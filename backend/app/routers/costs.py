@@ -27,11 +27,16 @@ def _month_label(year: int, month: int) -> str:
 def list_monthly_costs(
     year: int | None = Query(None),
     limit: int = Query(24, ge=1, le=120),
-    profile: str = Query("", description="AWS CLI profile name"),
+    cloud: str = Query("aws"),
+    cloud_account: str = Query(""),
+    profile: str = Query("", description="Deprecated: use cloud_account"),
     db: Session = Depends(get_db),
     _user: User = Depends(get_current_user),
 ):
-    rows = billing_service.get_monthly_costs(db, year=year, limit=limit, profile=profile)
+    effective_account = cloud_account or profile
+    rows = billing_service.get_monthly_costs(
+        db, year=year, limit=limit, cloud=cloud, cloud_account=effective_account
+    )
     items = [
         MonthlyCostItem(
             year=r.year,
@@ -48,8 +53,19 @@ def list_monthly_costs(
 
 
 @router.get("/monthly/{year}/{month}", response_model=MonthlyCostItem)
-def get_monthly_cost(year: int, month: int, profile: str = Query("", description="AWS CLI profile name"), db: Session = Depends(get_db), _user: User = Depends(get_current_user)):
-    row = billing_service.get_monthly_cost(db, year=year, month=month, profile=profile)
+def get_monthly_cost(
+    year: int,
+    month: int,
+    cloud: str = Query("aws"),
+    cloud_account: str = Query(""),
+    profile: str = Query("", description="Deprecated: use cloud_account"),
+    db: Session = Depends(get_db),
+    _user: User = Depends(get_current_user),
+):
+    effective_account = cloud_account or profile
+    row = billing_service.get_monthly_cost(
+        db, year=year, month=month, cloud=cloud, cloud_account=effective_account
+    )
     if not row:
         raise HTTPException(status_code=404, detail=f"No data for {_month_label(year, month)}")
     return MonthlyCostItem(
@@ -69,17 +85,21 @@ def get_service_costs(
     month: int,
     sort_by: str = Query("cost", pattern="^(cost|name)$"),
     min_cost: float = Query(0.01, ge=0),
-    profile: str = Query("", description="AWS CLI profile name"),
+    cloud: str = Query("aws"),
+    cloud_account: str = Query(""),
+    profile: str = Query("", description="Deprecated: use cloud_account"),
     db: Session = Depends(get_db),
     _user: User = Depends(get_current_user),
 ):
+    effective_account = cloud_account or profile
     mc, services = billing_service.get_service_costs(
-        db, year=year, month=month, sort_by=sort_by, min_cost=min_cost, profile=profile
+        db, year=year, month=month, sort_by=sort_by, min_cost=min_cost,
+        cloud=cloud, cloud_account=effective_account,
     )
     if not mc:
         raise HTTPException(status_code=404, detail=f"No data for {_month_label(year, month)}")
 
-    total = mc.total_cost or 1.0  # avoid division by zero
+    total = mc.total_cost or 1.0
     items = [
         ServiceCostItem(
             service_name=s.service_name,
@@ -100,6 +120,13 @@ def get_service_costs(
 
 
 @router.get("/summary", response_model=SummaryResponse)
-def get_summary(profile: str = Query("", description="AWS CLI profile name"), db: Session = Depends(get_db), _user: User = Depends(get_current_user)):
-    data = billing_service.get_summary(db, profile=profile)
+def get_summary(
+    cloud: str = Query("aws"),
+    cloud_account: str = Query(""),
+    profile: str = Query("", description="Deprecated: use cloud_account"),
+    db: Session = Depends(get_db),
+    _user: User = Depends(get_current_user),
+):
+    effective_account = cloud_account or profile
+    data = billing_service.get_summary(db, cloud=cloud, cloud_account=effective_account)
     return SummaryResponse(**data)

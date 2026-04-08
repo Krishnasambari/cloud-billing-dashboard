@@ -42,7 +42,9 @@
       "Bash(claude --version)",
       "Bash(claude plugin:*)",
       "Bash(git checkout:*)",
-      "Bash(pip --version)"
+      "Bash(pip --version)",
+      "mcp__ide__getDiagnostics",
+      "Bash(cat /d/aws-reports/backend/app/tasks/*.py)"
     ]
   }
 }

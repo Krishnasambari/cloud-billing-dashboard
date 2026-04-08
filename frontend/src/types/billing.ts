@@ -53,6 +53,8 @@ export interface NoteItem {
   resource_id: string | null
   resource_name: string | null
   filter_name: string | null
+  cloud: string
+  cloud_account: string
   aws_profile: string
   created_at: string
 }
@@ -63,7 +65,14 @@ export interface SyncStatusResponse {
   started_at: string
   finished_at: string | null
   months_synced: number
+  cloud: string
+  cloud_account: string
   aws_profile: string | null
   aws_region: string | null
   error_message: string | null
+}
+
+export interface CloudAccount {
+  cloud: string
+  cloud_account: string
 }

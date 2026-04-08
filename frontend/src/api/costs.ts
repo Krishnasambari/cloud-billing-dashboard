@@ -9,7 +9,8 @@ import type {
 export async function fetchMonthlyCosts(params?: {
   year?: number
   limit?: number
-  profile?: string
+  cloud?: string
+  cloud_account?: string
 }): Promise<MonthlyCostListResponse> {
   const { data } = await client.get('/costs/monthly', { params })
   return data
@@ -18,22 +19,25 @@ export async function fetchMonthlyCosts(params?: {
 export async function fetchMonthlyCost(
   year: number,
   month: number,
-  profile?: string
+  cloud?: string,
+  cloud_account?: string,
 ): Promise<MonthlyCostItem> {
-  const { data } = await client.get(`/costs/monthly/${year}/${month}`, { params: { profile } })
+  const { data } = await client.get(`/costs/monthly/${year}/${month}`, {
+    params: { cloud, cloud_account },
+  })
   return data
 }
 
 export async function fetchServiceCosts(
   year: number,
   month: number,
-  params?: { sort_by?: 'cost' | 'name'; min_cost?: number; profile?: string }
+  params?: { sort_by?: 'cost' | 'name'; min_cost?: number; cloud?: string; cloud_account?: string }
 ): Promise<ServiceBreakdownResponse> {
   const { data } = await client.get(`/costs/services/${year}/${month}`, { params })
   return data
 }
 
-export async function fetchSummary(profile?: string): Promise<SummaryResponse> {
-  const { data } = await client.get('/costs/summary', { params: { profile } })
+export async function fetchSummary(cloud?: string, cloud_account?: string): Promise<SummaryResponse> {
+  const { data } = await client.get('/costs/summary', { params: { cloud, cloud_account } })
   return data
 }

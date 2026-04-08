@@ -247,8 +247,10 @@ const LoginPage     = lazy(() => import('./pages/LoginPage'))
 const AdminPanel    = lazy(() => import('./pages/AdminPanel'))
 const ResourcesPage = lazy(() => import('./pages/ResourcesPage'))
 import SyncButton from './components/ui/SyncButton'
+import CloudAccountSelector from './components/ui/CloudAccountSelector'
 import { getStoredToken, getStoredUser, clearAuth, fetchMe, fetchMyCards, type AuthUser } from './api/auth'
-import { fetchProfiles } from './api/sync'
+import { fetchAccounts } from './api/sync'
+import type { CloudAccount } from './types/billing'
 
 type Page = 'dashboard' | 'compare' | 'resources'
 
@@ -258,24 +260,30 @@ export default function App() {
   const [cards, setCards]                     = useState<Record<string, boolean>>({})
   const [page, setPage]                       = useState<Page>('dashboard')
   const [reloadKey, setReloadKey]             = useState(0)
-  const [selectedProfile, setSelectedProfile] = useState('')
-  const [syncedProfiles, setSyncedProfiles]   = useState<string[]>([])
-  const [configuredProfiles, setConfiguredProfiles] = useState<string[]>([])
+  const [selectedCloud, setSelectedCloud]     = useState('aws')
+  const [selectedAccount, setSelectedAccount] = useState('')
+  const [accounts, setAccounts]               = useState<CloudAccount[]>([])
 
-  const loadProfiles = async () => {
+  const loadAccounts = async () => {
     try {
-      const p = await fetchProfiles()
-      setConfiguredProfiles(p.configured)
-      setSyncedProfiles(p.synced)
-      setSelectedProfile(prev =>
-        p.configured.includes(prev) ? prev : (p.configured[0] ?? prev)
-      )
+      const res = await fetchAccounts()
+      setAccounts(res.accounts)
+      if (res.accounts.length > 0) {
+        setSelectedCloud((prevCloud) => {
+          setSelectedAccount((prevAccount) => {
+            const stillValid = res.accounts.some(
+              (a) => a.cloud === prevCloud && a.cloud_account === prevAccount
+            )
+            return stillValid ? prevAccount : res.accounts[0].cloud_account
+          })
+          const stillValid = res.accounts.some((a) => a.cloud === prevCloud)
+          return stillValid ? prevCloud : res.accounts[0].cloud
+        })
+      }
     } catch { /* ignore */ }
   }
 
   useEffect(() => {
-    loadProfiles()
-
     const token  = getStoredToken()
     const stored = getStoredUser()
     if (token && stored) {
@@ -284,6 +292,7 @@ export default function App() {
         .then(([freshUser, cardMap]) => {
           setUser(freshUser)
           setCards(cardMap as Record<string, boolean>)
+          loadAccounts()
         })
         .catch(() => {
           clearAuth()
@@ -295,13 +304,13 @@ export default function App() {
     }
   }, [])
 
-  async function handleLogin(u: AuthUser, profile: string) {
+  async function handleLogin(u: AuthUser, _profile: string) {
     setUser(u)
     setAuthChecked(true)
-    if (profile) setSelectedProfile(profile)
     if (u.role !== 'admin') {
       try { setCards(await fetchMyCards()) } catch { /* defaults */ }
     }
+    loadAccounts()
   }
 
   function handleLogout() {
@@ -309,9 +318,9 @@ export default function App() {
     setUser(null)
     setCards({})
     setPage('dashboard')
-    setSelectedProfile('')
-    setSyncedProfiles([])
-    setConfiguredProfiles([])
+    setSelectedCloud('aws')
+    setSelectedAccount('')
+    setAccounts([])
   }
 
   if (!authChecked && !user) return null
@@ -734,32 +743,21 @@ export default function App() {
             
             {/* Right Side Controls */}
             <div className="flex items-center gap-4">
-              {/* AWS Profile Selector */}
-              {configuredProfiles.length > 0 && (
-                <div className="profile-selector">
-                  <svg className="profile-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />
-                  </svg>
-                  <select
-                    value={selectedProfile}
-                    onChange={(e) => { setSelectedProfile(e.target.value); setReloadKey((k) => k + 1) }}
-                    className="profile-select"
-                  >
-                    {configuredProfiles.map((p) => (
-                      <option key={p} value={p}>
-                        {p}{syncedProfiles.includes(p) ? ' ✓' : ''}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
+              {/* Cloud Account Selector */}
+              <CloudAccountSelector
+                accounts={accounts}
+                cloud={selectedCloud}
+                cloudAccount={selectedAccount}
+                onChange={(c, a) => { setSelectedCloud(c); setSelectedAccount(a); setReloadKey((k) => k + 1) }}
+              />
               
               {/* Sync Button */}
               {showSync && (
                 <div className="sync-wrapper">
                   <SyncButton
-                    onSyncComplete={() => { loadProfiles(); setReloadKey((k) => k + 1) }}
-                    activeProfile={selectedProfile}
+                    onSyncComplete={() => { loadAccounts(); setReloadKey((k) => k + 1) }}
+                    cloud={selectedCloud}
+                    cloudAccount={selectedAccount}
                   />
                 </div>
               )}
@@ -774,11 +772,11 @@ export default function App() {
         <div className="main-content">
           <Suspense fallback={<LoadingSpinner />}>
             {page === 'dashboard' ? (
-              <Dashboard key={reloadKey} cards={cards} profile={selectedProfile} />
+              <Dashboard key={reloadKey} cards={cards} cloud={selectedCloud} cloudAccount={selectedAccount} />
             ) : page === 'compare' ? (
-              <ComparePage key={reloadKey} cards={cards} profile={selectedProfile} />
+              <ComparePage key={reloadKey} cards={cards} cloud={selectedCloud} cloudAccount={selectedAccount} />
             ) : (
-              <ResourcesPage profile={selectedProfile} />
+              <ResourcesPage cloud={selectedCloud} cloudAccount={selectedAccount} />
             )}
           </Suspense>
         </div>
