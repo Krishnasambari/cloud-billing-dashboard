@@ -80,7 +80,7 @@ export default function Dashboard({ cards, cloud, cloudAccount }: Props) {
         body: JSON.stringify({
           cloud: 'aws',
           cloud_account: selectedAccount,
-          months_back: 1,
+          months_back: 12,
         }),
       })
       if (!res.ok) {
