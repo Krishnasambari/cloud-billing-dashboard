@@ -49,7 +49,6 @@ def trigger_sync(
     body: SyncTriggerRequest,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
-    _user: User = Depends(get_current_user),
 ):
     from datetime import datetime, timezone
 
@@ -77,7 +76,7 @@ def trigger_sync(
 
 
 @router.get("/status", response_model=SyncStatusResponse)
-def sync_status(db: Session = Depends(get_db), _user: User = Depends(get_current_user)):
+def sync_status(db: Session = Depends(get_db)):
     log = db.query(SyncLog).order_by(SyncLog.id.desc()).first()
     if not log:
         raise HTTPException(status_code=404, detail="No sync has been run yet")
@@ -88,7 +87,6 @@ def sync_status(db: Session = Depends(get_db), _user: User = Depends(get_current
 def sync_history(
     limit: int = Query(10, ge=1, le=100),
     db: Session = Depends(get_db),
-    _user: User = Depends(get_current_user),
 ):
     logs = db.query(SyncLog).order_by(SyncLog.id.desc()).limit(limit).all()
     items = [_log_to_response(l) for l in logs]
@@ -96,7 +94,7 @@ def sync_history(
 
 
 @router.get("/accounts", response_model=AccountsResponse)
-def list_accounts(db: Session = Depends(get_db), _user: User = Depends(get_current_user)):
+def list_accounts(db: Session = Depends(get_db)):
     """Return all cloud accounts that have synced data, plus configured AWS profiles."""
     synced = billing_service.list_synced_cloud_accounts(db)
     configured_aws = billing_service.list_configured_profiles()

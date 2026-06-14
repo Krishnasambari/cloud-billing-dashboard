@@ -88,23 +88,23 @@ def seed_default_users(db: Session) -> None:
     """Create default admin + sample users if none exist."""
     if db.query(User).filter_by(role="admin").count() > 0:
         return
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(timezone.utc)
     admin = User(email="admin@company.com", name="Admin", role="admin",
                  job_role="Administration", hashed_password=hash_password("admin123"), created_at=now)
     finance = User(email="finance@company.com", name="Finance User", role="user",
                    job_role="Finance", hashed_password=hash_password("finance123"), created_at=now)
     devops = User(email="devops@company.com", name="DevOps User", role="user",
-                  job_role="DevOps", hashed_password=hash_password("devops123"), created_at=now)
+                  job_role="DevOps", hashed_password=hash_password("devops123"), created_at=now)    
     db.add_all([admin, finance, devops])
     db.commit()
 
     # Finance: no sync button, no add-reason
     set_cards_for_user(db, finance.id, {
-        "button_sync": False,
+        "button_sync": True,
         "summary_this_month": True, "summary_last_month": True,
         "summary_ytd": True, "summary_mom": True,
         "chart_monthly": True, "chart_service": True,
-        "page_compare": True, "feature_add_reason": False,
+        "page_compare": True, "feature_add_reason": True,
     })
     # DevOps: all cards on
     set_cards_for_user(db, devops.id, {c["key"]: True for c in ALL_CARDS})

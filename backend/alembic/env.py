@@ -1,6 +1,10 @@
 import os
 import sys
 from logging.config import fileConfig
+import app.models.billing  # noqa: F401
+import app.models.sync_log  # noqa: F401
+import app.models.notes  # noqa: F401
+import app.models.user  # noqa: F401  ← ADD THIS
 
 from sqlalchemy import engine_from_config, pool
 from alembic import context

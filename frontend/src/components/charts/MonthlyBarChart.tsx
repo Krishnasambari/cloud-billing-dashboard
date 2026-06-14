@@ -18,9 +18,9 @@ interface Props {
 }
 
 const COLORS = [
-  '#3b82f6', '#06b6d4', '#8b5cf6', '#10b981',
-  '#f59e0b', '#ef4444', '#ec4899', '#84cc16',
-  '#f97316', '#6366f1', '#14b8a6', '#a855f7',
+  '#6366f1', '#8b5cf6', '#06b6d4', '#3b82f6',
+  '#10b981', '#f59e0b', '#ef4444', '#ec4899',
+  '#84cc16', '#f97316', '#14b8a6', '#a855f7',
   '#0ea5e9', '#d946ef', '#22c55e', '#eab308',
   '#f43f5e', '#64748b', '#fb923c', '#a3e635',
   '#38bdf8', '#c084fc', '#4ade80', '#facc15',
@@ -37,9 +37,15 @@ function CustomTooltip({ active, payload }: any) {
   const d = payload[0].payload as MonthlyCostItem
   const color = payload[0].fill as string
   return (
-    <div className="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 shadow-xl">
-      <p className="text-sm font-semibold text-white">{d.label}</p>
-      <p className="font-bold" style={{ color }}>{fmt.format(d.total_cost)}</p>
+    <div style={{
+      background: '#1e293b',
+      border: '1px solid #334155',
+      borderRadius: '10px',
+      padding: '10px 14px',
+      boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
+    }}>
+      <p style={{ fontSize: 12, fontWeight: 600, color: '#f1f5f9', marginBottom: 4 }}>{d.label}</p>
+      <p style={{ fontSize: 14, fontWeight: 700, color }}>{fmt.format(d.total_cost)}</p>
     </div>
   )
 }
@@ -52,35 +58,45 @@ export default function MonthlyBarChart({
 }: Props) {
   const hasSelection = selectedYear !== null && selectedMonth !== null
 
+  // Dynamically size bar width based on number of months
+  const barSize = Math.max(18, Math.min(36, Math.floor(600 / (data.length || 1)) - 10))
+
   return (
-    <ResponsiveContainer width="100%" height={300}>
+    <ResponsiveContainer width="100%" height={340}>
       <BarChart
         data={data}
-        margin={{ top: 10, right: 10, left: 10, bottom: 0 }}
+        margin={{ top: 12, right: 16, left: 8, bottom: 40 }}
+        barCategoryGap="30%"
         style={{ cursor: 'pointer' }}
       >
-        <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+        <CartesianGrid strokeDasharray="4 4" stroke="#F0F2F5" vertical={false} />
         <XAxis
           dataKey="label"
           tick={{ fill: '#94a3b8', fontSize: 11 }}
           axisLine={false}
           tickLine={false}
           interval={0}
-          angle={-35}
+          angle={-40}
           textAnchor="end"
-          height={50}
+          height={55}
         />
         <YAxis
           tick={{ fill: '#94a3b8', fontSize: 11 }}
           axisLine={false}
           tickLine={false}
-          tickFormatter={(v) => `$${v}`}
+          width={70}
+          tickFormatter={(v) =>
+            v >= 1000 ? `$${(v / 1000).toFixed(0)}k` : `$${v}`
+          }
         />
-        <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(148,163,184,0.06)' }} />
+        <Tooltip
+          content={<CustomTooltip />}
+          cursor={{ fill: 'rgba(99,102,241,0.06)' }}
+        />
         <Bar
           dataKey="total_cost"
-          radius={[4, 4, 0, 0]}
-          maxBarSize={48}
+          radius={[5, 5, 0, 0]}
+          maxBarSize={barSize}
           onClick={(entry: any) => onMonthSelect(entry.year, entry.month)}
         >
           {data.map((entry, i) => {
@@ -91,9 +107,9 @@ export default function MonthlyBarChart({
               <Cell
                 key={`${entry.year}-${entry.month}`}
                 fill={color}
-                opacity={hasSelection && !isSelected ? 0.3 : 1}
+                opacity={hasSelection && !isSelected ? 0.25 : 1}
                 stroke={isSelected ? '#ffffff' : 'none'}
-                strokeWidth={isSelected ? 1.5 : 0}
+                strokeWidth={isSelected ? 2 : 0}
               />
             )
           })}

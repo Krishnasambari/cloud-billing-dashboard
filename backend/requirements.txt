@@ -8,3 +8,8 @@ python-dateutil>=2.9
 azure-identity>=1.17
 azure-mgmt-costmanagement>=4.0
 azure-mgmt-resourcegraph>=8.0
+pymysql
+bcrypt
+PyJWT
+python-dotenv
+python-jose

@@ -1,17 +1,18 @@
-"""initial schema
+"""initial
 
-Revision ID: dd89d230580e
+Revision ID: 4f1f60ba4c9c
 Revises: 
-# Create Date: 2026-03-28 12:21:57.604324
+Create Date: 2026-06-13 15:11:37.549030
 
 """
 from typing import Sequence, Union
+
 from alembic import op
 import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = 'dd89d230580e'
+revision: str = '4f1f60ba4c9c'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -24,13 +25,33 @@ def upgrade() -> None:
     sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
     sa.Column('year', sa.Integer(), nullable=False),
     sa.Column('month', sa.Integer(), nullable=False),
+    sa.Column('cloud', sa.String(length=20), nullable=False),
+    sa.Column('cloud_account', sa.String(length=200), nullable=False),
+    sa.Column('aws_profile', sa.String(length=100), nullable=False),
     sa.Column('period_start', sa.String(length=10), nullable=False),
     sa.Column('period_end', sa.String(length=10), nullable=False),
     sa.Column('total_cost', sa.Float(), nullable=False),
     sa.Column('unit', sa.String(length=10), nullable=False),
     sa.Column('synced_at', sa.String(length=30), nullable=False),
     sa.PrimaryKeyConstraint('id'),
-    sa.UniqueConstraint('year', 'month', name='uq_monthly_year_month')
+    sa.UniqueConstraint('year', 'month', 'cloud', 'cloud_account', name='uq_monthly_year_month_cloud_account')
+    )
+    op.create_table('service_notes',
+    sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
+    sa.Column('year', sa.Integer(), nullable=False),
+    sa.Column('month', sa.Integer(), nullable=False),
+    sa.Column('service_name', sa.String(length=200), nullable=False),
+    sa.Column('note', sa.Text(), nullable=False),
+    sa.Column('note_date', sa.String(length=10), nullable=False),
+    sa.Column('resource_id', sa.String(length=500), nullable=True),
+    sa.Column('resource_name', sa.String(length=500), nullable=True),
+    sa.Column('filter_name', sa.String(length=20), nullable=True),
+    sa.Column('cloud', sa.String(length=20), nullable=False),
+    sa.Column('cloud_account', sa.String(length=200), nullable=False),
+    sa.Column('aws_profile', sa.String(length=100), nullable=False),
+    sa.Column('created_at', sa.String(length=30), nullable=False),
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('year', 'month', 'service_name', 'cloud', 'cloud_account', name='uq_note_year_month_service_cloud_account')
     )
     op.create_table('sync_logs',
     sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
@@ -39,6 +60,8 @@ def upgrade() -> None:
     sa.Column('status', sa.String(length=20), nullable=False),
     sa.Column('months_synced', sa.Integer(), nullable=False),
     sa.Column('error_message', sa.Text(), nullable=True),
+    sa.Column('cloud', sa.String(length=20), nullable=False),
+    sa.Column('cloud_account', sa.String(length=200), nullable=False),
     sa.Column('aws_profile', sa.String(length=100), nullable=True),
     sa.Column('aws_region', sa.String(length=50), nullable=True),
     sa.PrimaryKeyConstraint('id')
@@ -65,5 +88,6 @@ def downgrade() -> None:
     op.drop_index('ix_service_costs_monthly_cost_id', table_name='service_costs')
     op.drop_table('service_costs')
     op.drop_table('sync_logs')
+    op.drop_table('service_notes')
     op.drop_table('monthly_costs')
     # ### end Alembic commands ###

@@ -5,6 +5,7 @@ from dateutil.relativedelta import relativedelta
 
 from sqlalchemy.orm import Session
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+from sqlalchemy.dialects.mysql import insert as mysql_insert
 
 from app.models.billing import MonthlyCost, ServiceCost
 from app.models.sync_log import SyncLog
@@ -38,26 +39,62 @@ def _do_sync(
         service_breakdown = provider.fetch_service_breakdown(start_date, end_date)
 
         now = _now_iso()
+        dialect = db.get_bind().dialect.name
+        upsert_insert = mysql_insert if dialect == "mysql" else sqlite_insert
 
         for row in monthly_totals:
             period_start = row["period_start"]
             year = int(period_start[:4])
             month = int(period_start[5:7])
-            stmt = sqlite_insert(MonthlyCost).values(
+            stmt = upsert_insert(MonthlyCost).values(
                 year=year, month=month,
                 cloud=cloud, cloud_account=cloud_account,
                 aws_profile=cloud_account if cloud == "aws" else "",
                 period_start=row["period_start"], period_end=row["period_end"],
                 total_cost=row["total_cost"], unit=row["unit"], synced_at=now,
             )
-            stmt = stmt.on_conflict_do_update(
-                index_elements=["year", "month", "cloud", "cloud_account"],
-                set_={
-                    "period_start": row["period_start"], "period_end": row["period_end"],
-                    "total_cost": row["total_cost"], "unit": row["unit"], "synced_at": now,
-                },
-            )
+            if dialect == "mysql":
+                stmt = stmt.on_duplicate_key_update(
+                    total_cost=row["total_cost"], unit=row["unit"], synced_at=now,
+                )
+            else:
+                stmt = stmt.on_conflict_do_update(
+                    index_elements=["year", "month", "cloud", "cloud_account"],
+                    set_={"total_cost": row["total_cost"], "unit": row["unit"], "synced_at": now},
+                )
             db.execute(stmt)
+
+        # Fill missing months with zero cost
+        from dateutil.relativedelta import relativedelta
+        start_dt = datetime.strptime(start_date, "%Y-%m-%d")
+        end_dt = datetime.strptime(end_date, "%Y-%m-%d")
+        current = start_dt
+        existing_keys = {(int(row["period_start"][:4]), int(row["period_start"][5:7])) for row in monthly_totals}
+        while current < end_dt:
+            y, m = current.year, current.month
+            if (y, m) not in existing_keys:
+                period_start_str = current.strftime("%Y-%m-01")
+                # calculate end of month
+                next_month = current + relativedelta(months=1)
+                period_end_str = (next_month - relativedelta(days=1)).strftime("%Y-%m-%d")
+                zero_stmt = upsert_insert(MonthlyCost).values(
+                    year=y, month=m,
+                    cloud=cloud, cloud_account=cloud_account,
+                    aws_profile=cloud_account if cloud == "aws" else "",
+                    period_start=period_start_str, period_end=period_end_str,
+                    total_cost=0.0, unit="USD", synced_at=now,
+                )
+                if dialect == "mysql":
+                    zero_stmt = zero_stmt.on_duplicate_key_update(
+                        total_cost=0.0, unit="USD", synced_at=now,
+                    )
+                else:
+                    zero_stmt = zero_stmt.on_conflict_do_update(
+                        index_elements=["year", "month", "cloud", "cloud_account"],
+                        set_={"total_cost": 0.0, "unit": "USD", "synced_at": now},
+                    )
+                db.execute(zero_stmt)
+            current += relativedelta(months=1)
         db.commit()
 
         monthly_map: dict[tuple[int, int], int] = {}
@@ -76,15 +113,25 @@ def _do_sync(
             monthly_cost_id = monthly_map.get((year, month))
             if not monthly_cost_id:
                 continue
-            stmt = sqlite_insert(ServiceCost).values(
-                monthly_cost_id=monthly_cost_id,
-                service_name=row["service_name"], cost=row["cost"],
-                unit=row["unit"], synced_at=now,
-            )
-            stmt = stmt.on_conflict_do_update(
-                index_elements=["monthly_cost_id", "service_name"],
-                set_={"cost": row["cost"], "unit": row["unit"], "synced_at": now},
-            )
+            if dialect == "mysql":
+                stmt = upsert_insert(ServiceCost).values(
+                    monthly_cost_id=monthly_cost_id,
+                    service_name=row["service_name"], cost=row["cost"],
+                    unit=row["unit"], synced_at=now,
+                )
+                stmt = stmt.on_duplicate_key_update(
+                    cost=row["cost"], unit=row["unit"], synced_at=now,
+                )
+            else:
+                stmt = upsert_insert(ServiceCost).values(
+                    monthly_cost_id=monthly_cost_id,
+                    service_name=row["service_name"], cost=row["cost"],
+                    unit=row["unit"], synced_at=now,
+                )
+                stmt = stmt.on_conflict_do_update(
+                    index_elements=["monthly_cost_id", "service_name"],
+                    set_={"cost": row["cost"], "unit": row["unit"], "synced_at": now},
+                )
             db.execute(stmt)
         db.commit()
 
@@ -218,14 +265,21 @@ def get_summary(
     db: Session, cloud: str = "aws", cloud_account: str = ""
 ) -> dict:
     today = date.today()
-    current = db.query(MonthlyCost).filter_by(
-        year=today.year, month=today.month, cloud=cloud, cloud_account=cloud_account
-    ).first()
-    last_month_date = date(today.year, today.month, 1) - relativedelta(months=1)
-    last = db.query(MonthlyCost).filter_by(
-        year=last_month_date.year, month=last_month_date.month,
-        cloud=cloud, cloud_account=cloud_account,
-    ).first()
+    # Fetch the two most recent months with data for the given cloud/account
+    recent_months = (
+        db.query(MonthlyCost)
+        .filter_by(cloud=cloud, cloud_account=cloud_account)
+        .order_by(MonthlyCost.year.desc(), MonthlyCost.month.desc())
+        .limit(2)
+        .all()
+    )
+    if not recent_months:
+        current = last = None
+    elif len(recent_months) == 1:
+        current = recent_months[0]
+        last = None
+    else:
+        current, last = recent_months[0], recent_months[1]
     ytd_rows = db.query(MonthlyCost).filter(
         MonthlyCost.year == today.year,
         MonthlyCost.cloud == cloud,
@@ -235,6 +289,13 @@ def get_summary(
     mom_change = None
     if current and last and last.total_cost > 0:
         mom_change = round((current.total_cost - last.total_cost) / last.total_cost * 100, 1)
+
+    # Determine label for the previous month if available
+    if last:
+        last_month_date = date(last.year, last.month, 1)
+    else:
+        last_month_date = None
+
     return {
         "current_month": {
             "label": f"{today.strftime('%b')} {today.year}",
@@ -242,7 +303,7 @@ def get_summary(
             "unit": current.unit if current else "USD",
         },
         "last_month": {
-            "label": f"{last_month_date.strftime('%b')} {last_month_date.year}",
+            "label": f"{last_month_date.strftime('%b')} {last_month_date.year}" if last_month_date else "",
             "cost": round(last.total_cost, 4) if last else 0.0,
             "unit": last.unit if last else "USD",
         },

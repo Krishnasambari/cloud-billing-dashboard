@@ -189,11 +189,16 @@ async def startup():
     Base.metadata.create_all(bind=engine)
     _migrate_db()
     from app.services.auth_service import seed_default_users
+    from app.services.profile_watcher import ProfileWatcher
+    import asyncio
     db = SessionLocal()
     try:
         seed_default_users(db)
     finally:
         db.close()
+    # Start background profile watcher
+    watcher = ProfileWatcher()
+    asyncio.create_task(watcher.run_periodic_check())
 
 
 @app.get("/api/health", tags=["health"])
