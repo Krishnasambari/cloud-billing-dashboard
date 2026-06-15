@@ -59,12 +59,16 @@ export default function MonthlyBarChart({
   const hasSelection = selectedYear !== null && selectedMonth !== null
 
   // Dynamically size bar width based on number of months
-  const barSize = Math.max(18, Math.min(36, Math.floor(600 / (data.length || 1)) - 10))
+  const barSize = Math.max(18, Math.min(36, Math.floor(600 / (data.length || 1)) - 10));
+  const sortedData = [...data].sort((a, b) => {
+    if (a.year !== b.year) return b.year - a.year;
+    return b.month - a.month;
+  });
 
   return (
     <ResponsiveContainer width="100%" height={340}>
       <BarChart
-        data={data}
+        data={sortedData}
         margin={{ top: 12, right: 16, left: 8, bottom: 40 }}
         barCategoryGap="30%"
         style={{ cursor: 'pointer' }}
@@ -72,16 +76,16 @@ export default function MonthlyBarChart({
         <CartesianGrid strokeDasharray="4 4" stroke="#F0F2F5" vertical={false} />
         <XAxis
           dataKey="label"
-          tick={{ fill: '#94a3b8', fontSize: 11 }}
+          tick={{ fill: '#10182F', fontSize: 11 }}
           axisLine={false}
           tickLine={false}
           interval={0}
-          angle={-40}
-          textAnchor="end"
+          angle={0}
+          textAnchor="middle"
           height={55}
         />
         <YAxis
-          tick={{ fill: '#94a3b8', fontSize: 11 }}
+          tick={{ fill: '#10182F', fontSize: 11 }}
           axisLine={false}
           tickLine={false}
           width={70}

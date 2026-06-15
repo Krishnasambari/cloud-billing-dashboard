@@ -574,79 +574,79 @@ export default function Dashboard({ cards, cloud, cloudAccount }: Props) {
           const projectedDiff = forecast ? forecast.projected - summary.last_month.cost : null
 
           return (
-            <div className="stats-grid">
-              {can(cards, 'summary_this_month') && (
-                <CostCard
-                  title={<span className="font-semibold text-sm tracking-tight">Current Month</span>}
-                  amount={summary.current_month.cost}
-                  exchangeRate={exchangeRate}
-                  subtitle={summary.current_month.label}
-                  trend={summary.mom_change_pct}
-                  highlight
-                  icon="📅"
-                  variant="primary"
-                />
-              )}
+      <div className="stats-grid">
+      {can(cards, 'summary_this_month') && (
+        <CostCard
+          title={<span className="font-semibold text-sm tracking-tight text-black">Current Month</span>}
+          amount={summary.current_month.cost}
+          exchangeRate={exchangeRate}
+          subtitle={summary.current_month.label}
+          trend={summary.mom_change_pct}
+          highlight
+          icon="📅"
+          variant="primary"
+        />
+      )}
 
-              {can(cards, 'summary_last_month') && (
-                <CostCard
-                  title={<span className="font-semibold text-sm tracking-tight">Previous Month</span>}
-                  amount={summary.last_month.cost}
-                  exchangeRate={exchangeRate}
-                  subtitle={summary.last_month.label}
-                  icon="🗓️"
-                  variant="neutral"
-                />
-              )}
+      {can(cards, 'summary_last_month') && (
+        <CostCard
+          title={<span className="font-semibold text-sm tracking-tight text-black">Previous Month</span>}
+          amount={summary.last_month.cost}
+          exchangeRate={exchangeRate}
+          subtitle={summary.last_month.label}
+          icon="🗓️"
+          variant="neutral"
+        />
+      )}
 
-              {can(cards, 'summary_ytd') && (
-                <CostCard
-                  title={<span className="font-semibold text-sm tracking-tight">Year to Date</span>}
-                  amount={summary.ytd.cost}
-                  exchangeRate={exchangeRate}
-                  subtitle={String(summary.ytd.year)}
-                  icon="📊"
-                  variant="ytd"
-                />
-              )}
+      {can(cards, 'summary_mom') && (
+        <CostCard
+          title={<span className="font-semibold text-sm tracking-tight text-black">MoM Change</span>}
+          amount={0}
+          exchangeRate={exchangeRate}
+          isPercent
+          percentValue={
+            summary.mom_change_pct !== null
+              ? `${summary.mom_change_pct > 0 ? '+' : ''}${summary.mom_change_pct.toFixed(1)}%`
+              : '—'
+          }
+          diffAmount={diff}
+          subtitle="vs previous month"
+          trend={summary.mom_change_pct}
+          icon={summary.mom_change_pct !== null && summary.mom_change_pct < 0 ? '📉' : '📈'}
+          variant="trend"
+        />
+      )}
 
-              {can(cards, 'summary_mom') && (
-                <CostCard
-                  title={<span className="font-semibold text-sm tracking-tight">MoM Change</span>}
-                  amount={0}
-                  exchangeRate={exchangeRate}
-                  isPercent
-                  percentValue={
-                    summary.mom_change_pct !== null
-                      ? `${summary.mom_change_pct > 0 ? '+' : ''}${summary.mom_change_pct.toFixed(1)}%`
-                      : '—'
-                  }
-                  diffAmount={diff}
-                  subtitle="vs previous month"
-                  trend={summary.mom_change_pct}
-                  icon={summary.mom_change_pct !== null && summary.mom_change_pct < 0 ? '📉' : '📈'}
-                  variant="trend"
-                />
-              )}
+      {can(cards, 'summary_forecast') && forecast && (
+        <CostCard
+          title={<span className="font-semibold text-sm tracking-tight text-black">Month End Forecast</span>}
+          amount={forecast.projected}
+          exchangeRate={exchangeRate}
+          subtitle={`Based on ${forecast.daysElapsed}/${forecast.daysInMonth} days`}
+          icon="🔮"
+          forecastBadge={
+            projectedDiff !== null
+              ? `${projectedDiff > 0 ? '▲' : '▼'} ${Math.abs(
+                  (projectedDiff / summary.last_month.cost) * 100
+                ).toFixed(1)}% vs last month`
+              : undefined
+          }
+          forecastBadgeColor={projectedDiff !== null && projectedDiff > 0 ? 'red' : 'green'}
+          variant="forecast"
+        />
+      )}
 
-              {can(cards, 'summary_forecast') && forecast && (
-                <CostCard
-                  title={<span className="font-semibold text-sm tracking-tight">Month End Forecast</span>}
-                  amount={forecast.projected}
-                  exchangeRate={exchangeRate}
-                  subtitle={`Based on ${forecast.daysElapsed}/${forecast.daysInMonth} days`}
-                  icon="🔮"
-                  forecastBadge={
-                    projectedDiff !== null
-                      ? `${projectedDiff > 0 ? '▲' : '▼'} ${Math.abs(
-                        (projectedDiff / summary.last_month.cost) * 100
-                      ).toFixed(1)}% vs last month`
-                      : undefined
-                  }
-                  forecastBadgeColor={projectedDiff !== null && projectedDiff > 0 ? 'red' : 'green'}
-                  variant="forecast"
-                />
-              )}
+      {can(cards, 'summary_ytd') && (
+        <CostCard
+          title={<span className="font-semibold text-sm tracking-tight text-black">Year to Date</span>}
+          amount={summary.ytd.cost}
+          exchangeRate={exchangeRate}
+          subtitle={String(summary.ytd.year)}
+          icon="📊"
+          variant="ytd"
+        />
+      )}
             </div>
           )
         })()}

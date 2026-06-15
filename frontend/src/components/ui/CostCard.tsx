@@ -67,20 +67,15 @@ export default function CostCard({
         'bg-amber-500/10 text-amber-400 border-amber-500/20'
 
   const variantStyles = {
-
-  primary: 'bg-gradient-to-b from-emerald-900/40 to-slate-950 border border-emerald-500/20',
-
-  neutral: 'bg-gradient-to-b from-emerald-900/40 to-slate-950 border border-emerald-500/20',
-  ytd: 'bg-gradient-to-b from-emerald-900/40 to-slate-950 border border-emerald-500/20',
-
-  trend:
-    isPositiveTrend
-      ? 'bg-gradient-to-b from-emerald-900/40 to-slate-950 border border-emerald-500/20'
+    primary: 'bg-[#588b8b] border border-[#588b8b]/20',
+    neutral: 'bg-[#d6ce93] border border-[#d6ce93]/20',
+    ytd: 'bg-[#ffd23f] border border-[#ffd23f]/20',
+    trend: isPositiveTrend
+      ? 'bg-[#f28f3b] border border-[#f28f3b]/20'
       : isNegativeTrend
-        ? 'bg-gradient-to-b from-emerald-900/40 to-slate-950 border border-emerald-500/20'
-        : 'bg-gradient-to-b from-emerald-900/40 to-slate-950 border border-emerald-500/20',
-  forecast: 'bg-gradient-to-b from-emerald-900/40 to-slate-950 border border-emerald-500/20',
-
+        ? 'bg-[#f28f3b] border border-[#f28f3b]/20'
+        : 'bg-[#f28f3b] border border-[#f28f3b]/20',
+    forecast: 'bg-[#c8553d] border border-[#c8553d]/20',
   }
 
   const cardStyle = variantStyles[variant || 'neutral']
@@ -104,7 +99,7 @@ export default function CostCard({
       <div className="flex flex-col gap-1">
         {isPercent ? (
           <>
-            <span className={`text-2xl font-bold tracking-tight ${highlight ? 'text-white' : 'text-slate-100'}`}>
+            <span className={`text-2xl font-bold tracking-tight ${highlight ? 'text-white' : 'text-[#e5e7eb]'}`}>
               {percentValue ?? '—'}
             </span>
             {/* Dollar difference below percent */}
@@ -124,11 +119,11 @@ export default function CostCard({
             <span className={`text-2xl font-bold tracking-tight leading-none ${highlight ? 'text-white' : 'text-slate-100'}`}>
               {inr}
             </span>
-            <span className="text-xs text-slate-500 font-normal">{usd}</span>
+            <span className="text-xs text-[#e5e7eb] font-normal">{usd}</span>
           </>
         )}
         {subtitle && (
-          <span className="text-xs text-slate-500">{subtitle}</span>
+          <span className="text-xs text-[#e5e7eb]">{subtitle}</span>
         )}
       </div>
 
@@ -142,10 +137,10 @@ export default function CostCard({
       {/* Trend pill */}
       {hasTrend && (
         <div className={`flex items-center gap-1 text-xs font-medium rounded-md px-2 py-1 w-fit ${isNegativeTrend
-          ? 'bg-emerald-500/10 text-emerald-400'
+          ? 'bg-emerald-500/10 text-[#e5e7eb]'
           : isPositiveTrend
-            ? 'bg-red-500/10 text-red-400'
-            : 'bg-slate-700/50 text-slate-400'
+            ? 'bg-red-500/10 text-[#e5e7eb]'
+            : 'bg-slate-700/50 text-[#e5e7eb]'
           }`}>
           {isNegativeTrend ? '▼' : isPositiveTrend ? '▲' : null}
           {' '}{Math.abs(trend!).toFixed(1)}% vs last month

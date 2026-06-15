@@ -108,3 +108,4 @@ def seed_default_users(db: Session) -> None:
     })
     # DevOps: all cards on
     set_cards_for_user(db, devops.id, {c["key"]: True for c in ALL_CARDS})
+    
